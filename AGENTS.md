@@ -9,3 +9,5 @@ Quando adicionar novos scripts ou rotinas, inclua instruções de uso básicas s
 Mensagens de PR
 Inclua um resumo sucinto das alterações, listado em tópicos.
 Documente quais testes foram executados (ou informe se não foram necessários) e seus resultados.
+
+Eu uso script.html, style.html etc pq é executado no ambiente do google apps script, por isso tem que ser assim.
