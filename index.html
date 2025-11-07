@@ -1,1 +1,2028 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sistema de Agendamento - Salas</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <?!= include('style'); ?>
+</head>
+<body>
+    <div id="login-container">
+        <div class="login-form">
+            <h2><i class="fas fa-lock"></i> Acesso restrito</h2>
+            <div class="login-brand">
+                <img src="https://i.ibb.co/JWpmT4ys/logo-gama-claro.png" alt="Hospital de Referência">
+            </div>
+            <div class="login-divider"></div>
+            <div class="alert alert-error" id="login-alert" style="display: none;">
+                <i class="fas fa-exclamation-triangle"></i> <span id="login-message"></span>
+            </div>
+            <div class="login-group">
+                <label for="login-matricula">Matrícula</label>
+                <input type="text" id="login-matricula" placeholder="Informe sua matrícula" required>
+            </div>
+            <div class="login-group">
+                <label for="login-senha">Senha</label>
+                <input type="password" id="login-senha" placeholder="Digite sua senha" required>
+            </div>
+            <div class="login-actions">
+                <button class="btn" id="btn-login" type="button">
+                    <i class="fas fa-sign-in-alt" aria-hidden="true"></i>
+                    <span class="login-button-label">Entrar</span>
+                    <span class="button-spinner" aria-hidden="true"></span>
+                </button>
+            </div>
+            <div class="forgot-password" id="btn-forgot">Precisa de ajuda com o acesso?</div>
+        </div>
+    </div>
 
+    <div id="main-container" class="container" style="display: none;">
+        <header>
+            <div class="header-left">
+                <div class="header-brand">
+                    <button class="nav-toggle" id="nav-toggle" type="button" aria-expanded="false" aria-controls="main-nav">
+                        <i class="fas fa-bars" aria-hidden="true"></i>
+                        <span>Menu</span>
+                    </button>
+                    <div class="logo">
+                        <img src="https://i.ibb.co/JWpmT4ys/logo-gama-claro.png" alt="Logo Gama" class="logo-img" id="app-logo" data-dark-src="https://i.ibb.co/JWpmT4ys/logo-gama-claro.png" data-light-src="https://i.ibb.co/nMyZqyn3/logo-gama-escuro.png">
+                    </div>
+                </div>
+                <div class="header-nav">
+                    <nav class="main-nav" id="main-nav" aria-label="Navegação principal">
+                        <div class="nav-group is-active" data-group="operacao">
+                            <button class="nav-group-toggle" id="nav-group-operacao-toggle" type="button" aria-expanded="true" aria-controls="nav-group-operacao" aria-haspopup="true" data-initial-open="true">
+                                <i class="fas fa-gears" aria-hidden="true"></i>
+                                <span>Operação</span>
+                                <i class="fas fa-chevron-down group-caret" aria-hidden="true"></i>
+                            </button>
+                            <div class="nav-submenu is-open" id="nav-group-operacao" role="menu" aria-labelledby="nav-group-operacao-toggle">
+                                <button class="nav-btn active" data-tab="monitor" role="menuitem" data-tooltip="Acompanhe em tempo real a ocupação das salas">
+                                    <i class="fas fa-desktop" aria-hidden="true"></i>
+                                    <span>Monitor</span>
+                                </button>
+                                <button class="nav-btn" data-tab="planejamento" role="menuitem" data-tooltip="Monte o planejamento por turno e valide com o agendamento oficial">
+                                    <i class="fas fa-clipboard-check" aria-hidden="true"></i>
+                                    <span>Planejamento</span>
+                                </button>
+                            </div>
+                        </div>
+                        <div class="nav-group" data-group="analise">
+                            <button class="nav-group-toggle" id="nav-group-analise-toggle" type="button" aria-expanded="false" aria-controls="nav-group-analise" aria-haspopup="true">
+                                <i class="fas fa-chart-line" aria-hidden="true"></i>
+                                <span>Análise</span>
+                                <i class="fas fa-chevron-down group-caret" aria-hidden="true"></i>
+                            </button>
+                            <div class="nav-submenu" id="nav-group-analise" role="menu" aria-labelledby="nav-group-analise-toggle">
+                                <button class="nav-btn" data-tab="dashboard" role="menuitem" data-tooltip="Visualize indicadores estratégicos e tendências">
+                                    <i class="fas fa-chart-pie" aria-hidden="true"></i>
+                                    <span>Dashboards</span>
+                                </button>
+                                <button class="nav-btn" data-tab="relatorios" role="menuitem" data-tooltip="Gere relatórios detalhados e exportáveis">
+                                    <i class="fas fa-file-alt" aria-hidden="true"></i>
+                                    <span>Relatórios</span>
+                                </button>
+                            </div>
+                        </div>
+                        <div class="nav-group" data-group="gestao">
+                            <button class="nav-group-toggle" id="nav-group-gestao-toggle" type="button" aria-expanded="false" aria-controls="nav-group-gestao" aria-haspopup="true">
+                                <i class="fas fa-people-group" aria-hidden="true"></i>
+                                <span>Gestão</span>
+                                <i class="fas fa-chevron-down group-caret" aria-hidden="true"></i>
+                            </button>
+                            <div class="nav-submenu" id="nav-group-gestao" role="menu" aria-labelledby="nav-group-gestao-toggle">
+                                <button class="nav-btn" data-tab="medicos" role="menuitem" data-tooltip="Acompanhe produtividade e atrasos dos profissionais">
+                                    <i class="fas fa-user-md" aria-hidden="true"></i>
+                                    <span>Acompanhamento Médicos</span>
+                                </button>
+                                <button class="nav-btn" data-tab="logs" role="menuitem" data-tooltip="Audite atividades, alertas e ações administrativas">
+                                    <i class="fas fa-clipboard-list" aria-hidden="true"></i>
+                                    <span>Logs &amp; Auditoria</span>
+                                </button>
+                                <button class="nav-btn" data-tab="sala-mes" role="menuitem" data-tooltip="Analise a performance das salas ao longo do mês">
+                                    <i class="fas fa-door-open" aria-hidden="true"></i>
+                                    <span>Acompanhamento Salas</span>
+                                </button>
+                            </div>
+                        </div>
+                    </nav>
+                </div>
+            </div>
+            <div class="header-utilities">
+                <div class="controls">
+                    <button class="theme-toggle" id="theme-toggle" type="button" aria-label="Alternar entre tema claro e escuro">
+                        <i class="fas fa-moon" aria-hidden="true"></i>
+                    </button>
+                    <button class="icon-button schedule-toggle" id="schedule-toggle" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="schedule-controls" data-skip-busy="true">
+                        <i class="fas fa-calendar-day" aria-hidden="true"></i>
+                        <span class="label">Data &amp; turno</span>
+                    </button>
+                    <div class="schedule-controls" id="schedule-controls" aria-hidden="false">
+                        <div class="date-controls">
+                            <button id="prev-date" type="button"><i class="fas fa-chevron-left"></i></button>
+                            <div id="current-date">Carregando...</div>
+                            <input type="date" id="current-date-picker" aria-label="Selecionar data específica">
+                            <button id="next-date" type="button"><i class="fas fa-chevron-right"></i></button>
+                        </div>
+                        <div class="turno-selector" role="group" aria-label="Seleção de turno">
+                            <button class="turno-btn active" data-turno="manha" type="button" aria-label="Manhã">M</button>
+                            <button class="turno-btn" data-turno="tarde" type="button" aria-label="Tarde">T</button>
+                            <button class="turno-btn" data-turno="noite" type="button" aria-label="Noite">N</button>
+                            <button class="turno-btn" data-turno="todos" type="button" aria-label="Todos os turnos do dia">DIA</button>
+                        </div>
+                    </div>
+                    <div class="quick-actions">
+                        <button class="icon-button icon-only" id="open-filters" type="button" aria-controls="filters-panel" aria-label="Alternar filtros">
+                            <i class="fas fa-sliders-h"></i>
+                        </button>
+                        <button class="btn btn-secondary" id="btn-logout" type="button">
+                            <i class="fas fa-sign-out-alt"></i> Sair
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <div class="main-content">
+            <aside class="sidebar" data-drawer="filters" id="filters-panel">
+                <button class="drawer-close" type="button" data-drawer-close="filters" aria-label="Fechar filtros" data-skip-busy="true">
+                    <i class="fas fa-times"></i>
+                </button>
+                <h2><i class="fas fa-sliders-h"></i> Filtros e Controles</h2>
+                <div class="filters">
+                    <div class="filter-group">
+                        <label for="filter-especialidade"><i class="fas fa-stethoscope"></i> Especialidade</label>
+                        <div class="multiselect" id="filter-especialidade-multi">
+                            <button class="multiselect-btn">Todas as especialidades</button>
+                            <div class="multiselect-options" id="filter-especialidade-options"></div>
+                        </div>
+                    </div>
+                    <div class="filter-group">
+                        <label for="filter-categoria"><i class="fas fa-user-md"></i> Categoria</label>
+                        <div class="multiselect" id="filter-categoria-multi">
+                            <button class="multiselect-btn">Todas as categorias</button>
+                            <div class="multiselect-options" id="filter-categoria-options"></div>
+                        </div>
+                    </div>
+                    <div class="filter-group">
+                        <label for="filter-status"><i class="fas fa-circle"></i> Status</label>
+                        <div class="multiselect" id="filter-status-multi">
+                            <button class="multiselect-btn">Todos os status</button>
+                            <div class="multiselect-options" id="filter-status-options"></div>
+                        </div>
+                    </div>
+                    <div class="filter-group">
+                        <label for="filter-ilha"><i class="fas fa-umbrella-beach"></i> Ilha</label>
+                        <div class="multiselect" id="filter-ilha-multi">
+                            <button class="multiselect-btn">Todas as ilhas</button>
+                            <div class="multiselect-options" id="filter-ilha-options"></div>
+                        </div>
+                    </div>
+                    <button class="btn-cadastrar admin-only" id="btn-cadastro">
+                        <i class="fas fa-plus-circle"></i> Novo Agendamento
+                    </button>
+                    <button class="btn-bloquear admin-only" id="btn-bloquear">
+                        <i class="fas fa-lock"></i> Gerenciar Status Salas
+                    </button>
+                    <button class="btn-cadastrar admin-only" id="btn-cadastrar-usuario">
+                        <i class="fas fa-user-plus"></i> Cadastrar Usuário
+                    </button>
+                </div>
+
+                <div class="legend">
+                    <div class="legend-item">
+                        <div class="legend-color color-livre"></div>
+                        <span>Livre</span>
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-color color-ocupado"></div>
+                        <span>Ocupado</span>
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-color color-bloqueado"></div>
+                        <span>Bloqueado</span>
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-color color-reservado"></div>
+                        <span>Reservado</span>
+                    </div>
+                </div>
+            </aside>
+            <div class="monitor-container">
+                <div class="dashboard-section active" id="monitor-section">
+                    <div class="monitor-header">
+                        <div class="monitor-title">
+                            <i class="fas fa-desktop"></i> Monitor de Salas
+                        </div>
+                        <div class="monitor-actions">
+                            <button class="icon-button icon-only" id="btn-atualizar" type="button" aria-label="Atualizar monitor">
+                                <i class="fas fa-sync-alt"></i>
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <div class="toggle-container" id="toggle-simplificada-container">
+                        <span class="toggle-label">Visualização Simplificada:</span>
+                        <button class="toggle-simplificada active" id="toggle-simplificada">Ativado</button>
+                    </div>
+                    
+                    <div class="loading" id="loading-monitor">
+                        <i class="fas fa-spinner"></i>
+                        <p>Carregando salas...</p>
+                    </div>
+
+                    <div class="monitor-scroll">
+                        <div class="monitor" id="monitor-content"></div>
+                    </div>
+                </div>
+
+                <div class="dashboard-section" id="planejamento-section">
+                    <section class="planejamento-container" id="planejamento-container">
+                        <div class="planejamento-header">
+                            <div>
+                                <h2><i class="fas fa-clipboard-check"></i> Planejamento de Salas por Turno</h2>
+                                <p>Monte rapidamente o mapa de salas e valide com o agendamento oficial.</p>
+                            </div>
+                            <div class="planejamento-controls">
+                                <label>
+                                    Turno
+                                    <select id="planejamento-turno">
+                                        <option value="manha">Manhã</option>
+                                        <option value="tarde">Tarde</option>
+                                        <option value="noite">Noite</option>
+                                        <option value="todos">Todos</option>
+                                    </select>
+                                </label>
+                                <label>
+                                    Profissional
+                                    <input type="text" id="planejamento-filtro-nome" placeholder="Buscar por nome">
+                                </label>
+                                <label>
+                                    Especialidade
+                                    <select id="planejamento-filtro-especialidade">
+                                        <option value="">Todas</option>
+                                    </select>
+                                </label>
+                                <button class="btn btn-success admin-only" id="planejamento-adicionar" type="button">
+                                    <i class="fas fa-user-plus"></i> Adicionar profissional
+                                </button>
+                                <button class="btn btn-primary" id="planejamento-aplicar" type="button">
+                                    <i class="fas fa-check-double"></i> Substituir tudo
+                                </button>
+                            </div>
+                        </div>
+                        <div class="planejamento-table-wrapper">
+                            <div class="planejamento-loading" id="planejamento-loading" aria-hidden="true" aria-live="polite">
+                                <i class="fas fa-spinner"></i>
+                                <span>Carregando planejamento...</span>
+                            </div>
+                            <table class="planejamento-table">
+                                <thead>
+                                <tr>
+                                    <th class="planejamento-col-check">IN / OUT</th>
+                                    <th>Profissional</th>
+                                    <th>Especialidade</th>
+                                    <th>Turno</th>
+                                    <th>Sala atual</th>
+                                    <th>Sala planejada</th>
+                                    <th>Ações</th>
+                                </tr>
+                                </thead>
+                                <tbody id="planejamento-tbody"></tbody>
+                            </table>
+                        </div>
+                        <div class="planejamento-feedback" id="planejamento-feedback"></div>
+                    </section>
+                </div>
+
+                <div class="dashboard-section" id="medicos-section">
+                    <div class="medicos-container">
+                        <div class="medicos-header">
+                            <div>
+                                <h2><i class="fas fa-user-md"></i> Acompanhamento de Médicos</h2>
+                                <p>Monitore frequência, atrasos e horários padrão para antecipar ajustes na escala médica.</p>
+                            </div>
+                            <div class="medicos-highlight" id="medicos-highlight" data-status="vazio">
+                                <span class="medicos-highlight-label">Maior atraso registrado</span>
+                                <strong id="medicos-highlight-nome">Nenhum registro</strong>
+                                <span id="medicos-highlight-valor">0 min</span>
+                            </div>
+                        </div>
+
+                        <div class="medicos-filtros" id="medicos-filtros">
+                            <div class="medicos-filtro medicos-filtro-busca">
+                                <label for="medicos-busca">Buscar profissional</label>
+                                <div class="medicos-busca-input">
+                                    <i class="fas fa-search" aria-hidden="true"></i>
+                                    <input type="search" id="medicos-busca" placeholder="Digite nome ou especialidade">
+                                </div>
+                            </div>
+                            <div class="medicos-filtro">
+                                <label for="medicos-especialidade">Especialidade</label>
+                                <select id="medicos-especialidade">
+                                    <option value="todas">Todas</option>
+                                </select>
+                            </div>
+                            <div class="medicos-filtro medicos-filtro-periodo">
+                                <label for="medicos-periodo">Período</label>
+                                <div class="medicos-periodo-wrapper">
+                                    <select id="medicos-periodo">
+                                        <option value="dia">Dia</option>
+                                        <option value="semana">Semana</option>
+                                        <option value="mes">Mês</option>
+                                        <option value="ano">Ano</option>
+                                        <option value="intervalo">Intervalo</option>
+                                    </select>
+                                    <div class="medicos-periodo-detalhes" data-periodo="dia">
+                                        <input type="date" id="medicos-periodo-dia">
+                                    </div>
+                                    <div class="medicos-periodo-detalhes" data-periodo="semana">
+                                        <input type="week" id="medicos-periodo-semana">
+                                    </div>
+                                    <div class="medicos-periodo-detalhes" data-periodo="mes">
+                                        <input type="month" id="medicos-periodo-mes">
+                                    </div>
+                                    <div class="medicos-periodo-detalhes" data-periodo="ano">
+                                        <select id="medicos-periodo-ano"></select>
+                                    </div>
+                                    <div class="medicos-periodo-detalhes medicos-periodo-intervalo" data-periodo="intervalo">
+                                        <input type="date" id="medicos-periodo-inicio">
+                                        <span class="medicos-periodo-separador">até</span>
+                                        <input type="date" id="medicos-periodo-fim">
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="medicos-filtro">
+                                <label for="medicos-frequencia">Frequência</label>
+                                <select id="medicos-frequencia">
+                                    <option value="todos">Todos</option>
+                                    <option value="pontual">Pontuais</option>
+                                    <option value="atraso">Com atrasos</option>
+                                    <option value="faltou">Com faltas</option>
+                                    <option value="pendente">Pendências</option>
+                                    <option value="manual">Registros manuais</option>
+                                </select>
+                            </div>
+                            <div class="medicos-filtro">
+                                <label for="medicos-ordenacao">Ordenar por</label>
+                                <select id="medicos-ordenacao">
+                                    <option value="atrasos">Maiores atrasos</option>
+                                    <option value="faltas">Mais faltas</option>
+                                    <option value="frequencia">Melhor frequência</option>
+                                    <option value="nome">Nome (A-Z)</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="medicos-resumo" aria-live="polite">
+                            <div class="medicos-resumo-card">
+                                <span class="medicos-resumo-label">Profissionais monitorados</span>
+                                <strong class="medicos-resumo-valor" id="medicos-total">0</strong>
+                            </div>
+                            <div class="medicos-resumo-card">
+                                <span class="medicos-resumo-label">Frequência registrada</span>
+                                <strong class="medicos-resumo-valor" id="medicos-frequencia-registrada">0%</strong>
+                            </div>
+                            <div class="medicos-resumo-card">
+                                <span class="medicos-resumo-label">Média de atraso</span>
+                                <strong class="medicos-resumo-valor" id="medicos-atraso-medio">0 min</strong>
+                            </div>
+                        </div>
+
+                        <div class="medicos-lista" id="medicos-lista">
+                            <div class="empty-state">
+                                <i class="fas fa-user-md"></i>
+                                <p>Nenhum profissional encontrado no momento.</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="dashboard-section" id="logs-section">
+                    <section class="logs-container" aria-label="Auditoria e monitoramento de logs">
+                        <div class="logs-header">
+                            <div class="logs-header-info">
+                                <h2><i class="fas fa-clipboard-list"></i> Logs e Auditoria</h2>
+                                <p>Visualize eventos críticos, acompanhe alertas configurados e mantenha o histórico de auditoria sempre organizado.</p>
+                            </div>
+                            <div class="logs-header-actions">
+                                <span class="logs-sync-indicator" id="logs-ultima-sincronizacao">
+                                    <i class="fas fa-clock" aria-hidden="true"></i>
+                                    <span>Sincronização: aguardando dados</span>
+                                </span>
+                                <button class="btn btn-secondary" id="logs-exportar" type="button" data-logs-control>
+                                    <i class="fas fa-file-export"></i> Exportar filtrados (CSV)
+                                </button>
+                            </div>
+                        </div>
+
+                        <div class="logs-overview" id="logs-overview">
+                            <article class="logs-card">
+                                <header>
+                                    <span class="logs-card-label">Eventos registrados</span>
+                                    <i class="fas fa-database" aria-hidden="true"></i>
+                                </header>
+                                <strong id="logs-total-eventos">0</strong>
+                                <p>Total acumulado considerando todos os filtros.</p>
+                            </article>
+                            <article class="logs-card">
+                                <header>
+                                    <span class="logs-card-label">Alertas ativos</span>
+                                    <i class="fas fa-bell-exclamation" aria-hidden="true"></i>
+                                </header>
+                                <strong id="logs-total-alertas">0</strong>
+                                <p>Registros sinalizados para revisão imediata.</p>
+                            </article>
+                            <article class="logs-card">
+                                <header>
+                                    <span class="logs-card-label">Pendências de auditoria</span>
+                                    <i class="fas fa-user-check" aria-hidden="true"></i>
+                                </header>
+                                <strong id="logs-pendentes-revisao">0</strong>
+                                <p>Logs ainda não marcados como revisados.</p>
+                            </article>
+                            <article class="logs-card">
+                                <header>
+                                    <span class="logs-card-label">Último evento crítico</span>
+                                    <i class="fas fa-triangle-exclamation" aria-hidden="true"></i>
+                                </header>
+                                <strong id="logs-ultimo-critico">—</strong>
+                                <p>Horário da última ocorrência com falha.</p>
+                            </article>
+                        </div>
+
+                        <div class="logs-quick-filters" role="group" aria-label="Filtros rápidos de auditoria">
+                            <span class="logs-quick-title">Atalhos de auditoria:</span>
+                            <div class="logs-quick-buttons">
+                                <button class="logs-quick-filter active" type="button" data-logs-filter="todos" data-logs-control>Todos</button>
+                                <button class="logs-quick-filter" type="button" data-logs-filter="ultimas24h" data-logs-control>Últimas 24h</button>
+                                <button class="logs-quick-filter" type="button" data-logs-filter="falhas" data-logs-control>Falhas registradas</button>
+                                <button class="logs-quick-filter" type="button" data-logs-filter="administradores" data-logs-control>Ações de administradores</button>
+                                <button class="logs-quick-filter" type="button" data-logs-filter="alertas" data-logs-control>Somente alertas</button>
+                            </div>
+                        </div>
+
+                        <div class="logs-main">
+                            <aside class="logs-filter-panel">
+                                <div class="logs-filter-header">
+                                    <h3><i class="fas fa-sliders-h"></i> Filtro avançado</h3>
+                                    <p>Combine critérios para refinar a busca e salve filtros frequentes.</p>
+                                </div>
+                                <div class="logs-filter-body">
+                                    <label>
+                                        Intervalo inicial
+                                        <input type="date" id="logs-data-inicio" data-logs-control>
+                                    </label>
+                                    <label>
+                                        Intervalo final
+                                        <input type="date" id="logs-data-fim" data-logs-control>
+                                    </label>
+                                    <label>
+                                        Usuário responsável
+                                        <input type="text" id="logs-usuario" placeholder="Nome ou matrícula" data-logs-control>
+                                    </label>
+                                    <label>
+                                        Tipo de ação
+                                        <select id="logs-acao" multiple data-logs-control>
+                                            <option value="criacao">Criação</option>
+                                            <option value="atualizacao">Atualização</option>
+                                            <option value="cancelamento">Cancelamento</option>
+                                            <option value="login">Login</option>
+                                            <option value="exportacao">Exportação</option>
+                                            <option value="rotina">Rotina automática</option>
+                                            <option value="administrativo">Ajuste administrativo</option>
+                                        </select>
+                                    </label>
+                                    <label>
+                                        Resultado
+                                        <select id="logs-status" multiple data-logs-control>
+                                            <option value="sucesso">Sucesso</option>
+                                            <option value="erro">Erro</option>
+                                            <option value="alerta">Alerta</option>
+                                        </select>
+                                    </label>
+                                    <label>
+                                        Origem do evento
+                                        <select id="logs-origem" multiple data-logs-control>
+                                            <option value="web">Portal web</option>
+                                            <option value="mobile">Aplicativo mobile</option>
+                                            <option value="api">API externa</option>
+                                            <option value="rotina">Rotina automática</option>
+                                        </select>
+                                    </label>
+                                    <label class="logs-checkbox">
+                                        <input type="checkbox" id="logs-apenas-alertas" data-logs-control>
+                                        <span>Somente eventos com alerta vinculado</span>
+                                    </label>
+                                </div>
+                                <div class="logs-filter-footer">
+                                    <div class="logs-save-filter">
+                                        <input type="text" id="logs-nome-filtro" placeholder="Nome do filtro salvo" data-logs-control>
+                                        <button class="btn btn-tertiary" id="logs-salvar-filtro" type="button" data-logs-control>
+                                            <i class="fas fa-bookmark"></i> Salvar filtro
+                                        </button>
+                                    </div>
+                                    <div class="logs-saved-filters" id="logs-filtros-salvos" aria-live="polite"></div>
+                                </div>
+                            </aside>
+
+                            <div class="logs-table-area">
+                                <div class="logs-access-warning" id="logs-access-warning" role="alert">
+                                    <i class="fas fa-lock" aria-hidden="true"></i>
+                                    <div>
+                                        <strong>Acesso restrito.</strong>
+                                        <p>Solicite uma permissão de gestor ou administrador para manipular filtros avançados ou exportar registros.</p>
+                                    </div>
+                                </div>
+                                <div class="logs-table-card">
+                                    <div class="logs-table-toolbar">
+                                        <div class="logs-search">
+                                            <i class="fas fa-search" aria-hidden="true"></i>
+                                            <input type="search" id="logs-busca" placeholder="Buscar por usuário, ação ou detalhes" data-logs-control>
+                                        </div>
+                                        <div class="logs-toolbar-actions">
+                                            <button class="btn btn-tertiary" id="logs-marcar-revisado" type="button" data-logs-control disabled>
+                                                <i class="fas fa-shield-check"></i> Marcar como revisado
+                                            </button>
+                                            <button class="btn btn-tertiary" id="logs-limpar-filtros" type="button" data-logs-control>
+                                                <i class="fas fa-eraser"></i> Limpar filtros
+                                            </button>
+                                        </div>
+                                    </div>
+                                    <div class="logs-table-wrapper">
+                                        <table class="logs-table">
+                                            <thead>
+                                                <tr>
+                                                    <th scope="col">Data/Hora</th>
+                                                    <th scope="col">Usuário</th>
+                                                    <th scope="col">Ação</th>
+                                                    <th scope="col">Resultado</th>
+                                                    <th scope="col">Origem</th>
+                                                    <th scope="col">Detalhes</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody id="logs-table-body">
+                                                <tr class="logs-table-empty">
+                                                    <td colspan="6">
+                                                        <i class="fas fa-clipboard"></i>
+                                                        <p>Nenhum registro encontrado para os filtros atuais.</p>
+                                                    </td>
+                                                </tr>
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <aside class="logs-detail-panel" id="logs-detail-panel" aria-label="Detalhes do log selecionado">
+                                <div class="logs-detail-header">
+                                    <h3><i class="fas fa-file-lines"></i> Detalhes do log</h3>
+                                    <button class="icon-button icon-only" id="logs-detail-close" type="button" aria-label="Fechar detalhes" data-skip-busy="true">
+                                        <i class="fas fa-times"></i>
+                                    </button>
+                                </div>
+                                <div class="logs-detail-body">
+                                    <p class="logs-detail-placeholder" id="logs-detail-placeholder">Selecione um registro para visualizar o histórico completo.</p>
+                                    <div class="logs-detail-content" id="logs-detail-content">
+                                        <dl class="logs-detail-grid">
+                                            <div>
+                                                <dt>Data/Hora</dt>
+                                                <dd id="logs-detalhe-data">—</dd>
+                                            </div>
+                                            <div>
+                                                <dt>Usuário</dt>
+                                                <dd id="logs-detalhe-usuario">—</dd>
+                                            </div>
+                                            <div>
+                                                <dt>Perfil</dt>
+                                                <dd id="logs-detalhe-perfil">—</dd>
+                                            </div>
+                                            <div>
+                                                <dt>Ação executada</dt>
+                                                <dd id="logs-detalhe-acao">—</dd>
+                                            </div>
+                                            <div>
+                                                <dt>Resultado</dt>
+                                                <dd id="logs-detalhe-resultado">—</dd>
+                                            </div>
+                                            <div>
+                                                <dt>Origem</dt>
+                                                <dd id="logs-detalhe-origem">—</dd>
+                                            </div>
+                                            <div>
+                                                <dt>IP de origem</dt>
+                                                <dd id="logs-detalhe-ip">—</dd>
+                                            </div>
+                                            <div>
+                                                <dt>Revisão</dt>
+                                                <dd id="logs-detalhe-revisao">—</dd>
+                                            </div>
+                                        </dl>
+                                        <div class="logs-detail-notes">
+                                            <h4>Observações</h4>
+                                            <p id="logs-detalhe-observacoes">—</p>
+                                        </div>
+                                        <div class="logs-detail-payload">
+                                            <header>
+                                                <span>Payload associado</span>
+                                                <button class="btn btn-tertiary" id="logs-exportar-individual" type="button" data-logs-control>
+                                                    <i class="fas fa-download"></i> Exportar JSON
+                                                </button>
+                                            </header>
+                                            <pre id="logs-detalhe-payload">—</pre>
+                                        </div>
+                                    </div>
+                                </div>
+                            </aside>
+                        </div>
+
+                        <section class="logs-alerts" aria-label="Alertas configurados">
+                            <div class="logs-alerts-header">
+                                <h3><i class="fas fa-bell"></i> Alertas &amp; notificações</h3>
+                                <button class="btn btn-tertiary admin-only" id="logs-gerenciar-alertas" type="button" data-logs-control>
+                                    <i class="fas fa-gear"></i> Gerenciar regras
+                                </button>
+                            </div>
+                            <ul class="logs-alerts-list" id="logs-alertas-list">
+                                <li class="logs-alerts-empty">Nenhuma regra configurada até o momento.</li>
+                            </ul>
+                        </section>
+
+                        <div class="logs-feedback" id="logs-feedback" role="status" aria-live="polite"></div>
+                    </section>
+                </div>
+
+                <div class="dashboard-section" id="dashboard-section">
+                    <h2>Dashboards</h2>
+                    <div class="dashboard-controls">
+                        <select id="dashboard-periodo">
+                            <option value="dia">Dia</option>
+                            <option value="semana">Semana</option>
+                            <option value="mes">Mês</option>
+                            <option value="ano">Ano</option>
+                        </select>
+                        <div class="dashboard-periodo-detalhes" id="dashboard-periodo-detalhes">
+                            <div class="dashboard-periodo-field" data-periodo="mes">
+                                <label for="dashboard-periodo-meses">Meses</label>
+                                <div class="report-multiselect" data-select-id="dashboard-periodo-meses" data-placeholder="Selecione os meses">
+                                    <button type="button" class="report-multiselect-btn">Selecionar meses</button>
+                                    <div class="report-multiselect-panel">
+                                        <div class="report-multiselect-actions">
+                                            <button type="button" data-action="select-all">Selecionar todos</button>
+                                            <button type="button" data-action="clear">Limpar</button>
+                                        </div>
+                                        <div class="report-multiselect-options"></div>
+                                    </div>
+                                </div>
+                                <select id="dashboard-periodo-meses" multiple class="sr-only-input"></select>
+                            </div>
+                            <div class="dashboard-periodo-field" data-periodo="semana" data-field="meses">
+                                <label for="dashboard-periodo-semana-meses">Meses</label>
+                                <div class="report-multiselect" data-select-id="dashboard-periodo-semana-meses" data-placeholder="Selecione os meses">
+                                    <button type="button" class="report-multiselect-btn">Meses</button>
+                                    <div class="report-multiselect-panel">
+                                        <div class="report-multiselect-actions">
+                                            <button type="button" data-action="select-all">Selecionar todos</button>
+                                            <button type="button" data-action="clear">Limpar</button>
+                                        </div>
+                                        <div class="report-multiselect-options"></div>
+                                    </div>
+                                </div>
+                                <select id="dashboard-periodo-semana-meses" multiple class="sr-only-input"></select>
+                            </div>
+                            <div class="dashboard-periodo-field" data-periodo="semana" data-field="semanas">
+                                <label for="dashboard-periodo-semanas">Semanas do mês</label>
+                                <div class="report-multiselect" data-select-id="dashboard-periodo-semanas" data-placeholder="Semanas">
+                                    <button type="button" class="report-multiselect-btn">Semanas</button>
+                                    <div class="report-multiselect-panel">
+                                        <div class="report-multiselect-actions">
+                                            <button type="button" data-action="select-all">Selecionar todas</button>
+                                            <button type="button" data-action="clear">Limpar</button>
+                                        </div>
+                                        <div class="report-multiselect-options"></div>
+                                    </div>
+                                </div>
+                                <select id="dashboard-periodo-semanas" multiple class="sr-only-input"></select>
+                                <span class="dashboard-periodo-hint">É possível combinar mais de uma semana e mês.</span>
+                            </div>
+                            <div class="dashboard-periodo-field" data-periodo="ano">
+                                <label for="dashboard-periodo-anos">Anos</label>
+                                <div class="report-multiselect" data-select-id="dashboard-periodo-anos" data-placeholder="Selecione os anos">
+                                    <button type="button" class="report-multiselect-btn">Selecionar anos</button>
+                                    <div class="report-multiselect-panel">
+                                        <div class="report-multiselect-actions">
+                                            <button type="button" data-action="select-all">Selecionar todos</button>
+                                            <button type="button" data-action="clear">Limpar</button>
+                                        </div>
+                                        <div class="report-multiselect-options"></div>
+                                    </div>
+                                </div>
+                                <select id="dashboard-periodo-anos" multiple class="sr-only-input"></select>
+                            </div>
+                        </div>
+                        <div class="comparison-toggle-group">
+                            <button class="btn btn-secondary" type="button" id="btn-dashboard-comparar">
+                                <i class="fas fa-arrow-right-arrow-left"></i>
+                                <span>Comparar</span>
+                            </button>
+                            <button class="btn btn-tertiary" type="button" id="btn-dashboard-pdf">
+                                <i class="fas fa-file-pdf"></i>
+                                <span>Exportar PDF</span>
+                            </button>
+                            <button class="icon-button icon-only" id="btn-atualizar-dashboard" type="button" aria-label="Atualizar indicadores do dashboard">
+                                <i class="fas fa-sync-alt"></i>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="comparison-panel" id="dashboard-comparar-panel">
+                        <div class="comparison-field">
+                            <label for="dashboard-comparar-tipo">Tipo de período</label>
+                            <select id="dashboard-comparar-tipo">
+                                <option value="">Selecione</option>
+                                <option value="dia">Dia específico</option>
+                                <option value="intervalo">Intervalo de datas</option>
+                                <option value="mes">Mês(es)</option>
+                                <option value="ano">Ano(s)</option>
+                            </select>
+                        </div>
+                        <div class="comparison-field" data-comparar="dia">
+                            <label for="dashboard-comparar-dia">Dia para comparação</label>
+                            <input type="date" id="dashboard-comparar-dia">
+                        </div>
+                        <div class="comparison-field" data-comparar="intervalo">
+                            <label>Intervalo</label>
+                            <div class="dashboard-day-range-fields">
+                                <label class="dashboard-day-range-label" for="dashboard-comparar-inicio">
+                                    <span>Início</span>
+                                    <input type="date" id="dashboard-comparar-inicio">
+                                </label>
+                                <label class="dashboard-day-range-label" for="dashboard-comparar-fim">
+                                    <span>Fim</span>
+                                    <input type="date" id="dashboard-comparar-fim">
+                                </label>
+                            </div>
+                        </div>
+                        <div class="comparison-field" data-comparar="mes">
+                            <label for="dashboard-comparar-meses">Meses para comparação</label>
+                            <div class="report-multiselect" data-select-id="dashboard-comparar-meses" data-placeholder="Selecionar meses">
+                                <button type="button" class="report-multiselect-btn">Selecionar meses</button>
+                                <div class="report-multiselect-panel">
+                                    <div class="report-multiselect-actions">
+                                        <button type="button" data-action="select-all">Selecionar todos</button>
+                                        <button type="button" data-action="clear">Limpar</button>
+                                    </div>
+                                    <div class="report-multiselect-options"></div>
+                                </div>
+                            </div>
+                            <select id="dashboard-comparar-meses" multiple class="sr-only-input"></select>
+                        </div>
+                        <div class="comparison-field" data-comparar="ano">
+                            <label for="dashboard-comparar-anos">Anos para comparação</label>
+                            <div class="report-multiselect" data-select-id="dashboard-comparar-anos" data-placeholder="Selecionar anos">
+                                <button type="button" class="report-multiselect-btn">Selecionar anos</button>
+                                <div class="report-multiselect-panel">
+                                    <div class="report-multiselect-actions">
+                                        <button type="button" data-action="select-all">Selecionar todos</button>
+                                        <button type="button" data-action="clear">Limpar</button>
+                                    </div>
+                                    <div class="report-multiselect-options"></div>
+                                </div>
+                            </div>
+                            <select id="dashboard-comparar-anos" multiple class="sr-only-input"></select>
+                        </div>
+                        <div class="comparison-actions">
+                            <button class="btn btn-secondary" type="button" id="dashboard-comparar-aplicar">Aplicar comparação</button>
+                            <button class="btn btn-tertiary" type="button" id="dashboard-comparar-limpar">Remover comparação</button>
+                        </div>
+                    </div>
+                    <div class="dashboard-day-selector" id="dashboard-dia-especifico-container">
+                        <div class="dashboard-day-mode">
+                            <label>
+                                <input type="radio" name="dashboard-dia-modo" value="hoje" checked>
+                                <span>Usar data atual do monitor</span>
+                            </label>
+                            <label>
+                                <input type="radio" name="dashboard-dia-modo" value="intervalo">
+                                <span>Selecionar intervalo de dias</span>
+                            </label>
+                        </div>
+                        <div class="dashboard-day-range" id="dashboard-dia-range">
+                            <div class="dashboard-day-range-fields">
+                                <label class="dashboard-day-range-label" for="dashboard-dia-inicio">
+                                    <span>Início</span>
+                                    <input type="date" id="dashboard-dia-inicio" aria-label="Data inicial do intervalo">
+                                </label>
+                                <label class="dashboard-day-range-label" for="dashboard-dia-fim">
+                                    <span>Fim</span>
+                                    <input type="date" id="dashboard-dia-fim" aria-label="Data final do intervalo">
+                                </label>
+                            </div>
+                            <span class="dashboard-day-range-hint">Escolha a data inicial e final para analisar o período.</span>
+                        </div>
+                    </div>
+                    <div class="filter-toggle-bar">
+                        <button type="button" class="filter-toggle-btn" data-filter-toggle="dashboard-filtros" data-expanded-text="Ocultar filtros" data-collapsed-text="Mostrar filtros" aria-expanded="true" aria-controls="dashboard-filtros">
+                            <i class="fas fa-eye-slash" aria-hidden="true"></i>
+                            <span class="filter-toggle-label">Ocultar filtros</span>
+                        </button>
+                    </div>
+                    <div class="report-filters compact" id="dashboard-filtros">
+                        <div class="report-filter-field">
+                            <label for="dashboard-filtro-turno">Turnos</label>
+                            <div class="report-multiselect" data-select-id="dashboard-filtro-turno" data-placeholder="Todos os turnos">
+                                <button type="button" class="report-multiselect-btn">Todos os turnos</button>
+                                <div class="report-multiselect-panel">
+                                    <div class="report-multiselect-actions">
+                                        <button type="button" data-action="select-all">Selecionar todos</button>
+                                        <button type="button" data-action="clear">Limpar</button>
+                                    </div>
+                                    <div class="report-multiselect-options"></div>
+                                </div>
+                            </div>
+                            <select id="dashboard-filtro-turno" multiple class="sr-only-input"></select>
+                        </div>
+                        <div class="report-filter-field">
+                            <label for="dashboard-filtro-status">Status</label>
+                            <div class="report-multiselect" data-select-id="dashboard-filtro-status" data-placeholder="Todos os status">
+                                <button type="button" class="report-multiselect-btn">Todos os status</button>
+                                <div class="report-multiselect-panel">
+                                    <div class="report-multiselect-actions">
+                                        <button type="button" data-action="select-all">Selecionar todos</button>
+                                        <button type="button" data-action="clear">Limpar</button>
+                                    </div>
+                                    <div class="report-multiselect-options"></div>
+                                </div>
+                            </div>
+                            <select id="dashboard-filtro-status" multiple class="sr-only-input"></select>
+                        </div>
+                        <div class="report-filter-field">
+                            <label for="dashboard-filtro-ilha">Ilhas</label>
+                            <div class="report-multiselect" data-select-id="dashboard-filtro-ilha" data-placeholder="Todas as ilhas">
+                                <button type="button" class="report-multiselect-btn">Todas as ilhas</button>
+                                <div class="report-multiselect-panel">
+                                    <div class="report-multiselect-actions">
+                                        <button type="button" data-action="select-all">Selecionar todas</button>
+                                        <button type="button" data-action="clear">Limpar</button>
+                                    </div>
+                                    <div class="report-multiselect-options"></div>
+                                </div>
+                            </div>
+                            <select id="dashboard-filtro-ilha" multiple class="sr-only-input"></select>
+                        </div>
+                        <div class="report-filter-field">
+                            <label for="dashboard-filtro-sala">Salas</label>
+                            <div class="report-multiselect" data-select-id="dashboard-filtro-sala" data-placeholder="Todas as salas">
+                                <button type="button" class="report-multiselect-btn">Todas as salas</button>
+                                <div class="report-multiselect-panel">
+                                    <div class="report-multiselect-actions">
+                                        <button type="button" data-action="select-all">Selecionar todas</button>
+                                        <button type="button" data-action="clear">Limpar</button>
+                                    </div>
+                                    <div class="report-multiselect-options"></div>
+                                </div>
+                            </div>
+                            <select id="dashboard-filtro-sala" multiple class="sr-only-input"></select>
+                        </div>
+                        <div class="report-filter-field">
+                            <label for="dashboard-filtro-especialidade">Especialidades</label>
+                            <div class="report-multiselect" data-select-id="dashboard-filtro-especialidade" data-placeholder="Todas as especialidades">
+                                <button type="button" class="report-multiselect-btn">Todas as especialidades</button>
+                                <div class="report-multiselect-panel">
+                                    <div class="report-multiselect-actions">
+                                        <button type="button" data-action="select-all">Selecionar todas</button>
+                                        <button type="button" data-action="clear">Limpar</button>
+                                    </div>
+                                    <div class="report-multiselect-options"></div>
+                                </div>
+                            </div>
+                            <select id="dashboard-filtro-especialidade" multiple class="sr-only-input"></select>
+                        </div>
+                        <div class="report-filter-field">
+                            <label for="dashboard-filtro-categoria">Categorias</label>
+                            <div class="report-multiselect" data-select-id="dashboard-filtro-categoria" data-placeholder="Todas as categorias">
+                                <button type="button" class="report-multiselect-btn">Todas as categorias</button>
+                                <div class="report-multiselect-panel">
+                                    <div class="report-multiselect-actions">
+                                        <button type="button" data-action="select-all">Selecionar todas</button>
+                                        <button type="button" data-action="clear">Limpar</button>
+                                    </div>
+                                    <div class="report-multiselect-options"></div>
+                                </div>
+                            </div>
+                            <select id="dashboard-filtro-categoria" multiple class="sr-only-input"></select>
+                        </div>
+                        <div class="report-filter-field">
+                            <label for="dashboard-filtro-profissional">Profissionais</label>
+                            <div class="report-multiselect" data-select-id="dashboard-filtro-profissional" data-placeholder="Todos os profissionais">
+                                <button type="button" class="report-multiselect-btn">Todos os profissionais</button>
+                                <div class="report-multiselect-panel">
+                                    <div class="report-multiselect-actions">
+                                        <button type="button" data-action="select-all">Selecionar todos</button>
+                                        <button type="button" data-action="clear">Limpar</button>
+                                    </div>
+                                    <div class="report-multiselect-options"></div>
+                                </div>
+                            </div>
+                            <select id="dashboard-filtro-profissional" multiple class="sr-only-input"></select>
+                        </div>
+                    </div>
+                    <div class="resumo-grid" id="dashboard-resumo">
+                        <div class="resumo-card">
+                            <span class="resumo-label">Período analisado</span>
+                            <span class="resumo-valor" id="dashboard-resumo-periodo">-</span>
+                        </div>
+                        <div class="resumo-card">
+                            <span class="resumo-label">Agendamentos analisados</span>
+                            <span class="resumo-valor" id="dashboard-resumo-total">0</span>
+                        </div>
+                        <div class="resumo-card">
+                            <span class="resumo-label">Dias analisados</span>
+                            <span class="resumo-valor" id="dashboard-resumo-dias">0</span>
+                        </div>
+                        <div class="resumo-card">
+                            <span class="resumo-label">Ocupação média</span>
+                            <span class="resumo-valor" id="dashboard-resumo-ocupacao-media">0%</span>
+                        </div>
+                        <div class="resumo-card">
+                            <span class="resumo-label">Pico de ocupação</span>
+                            <span class="resumo-valor" id="dashboard-resumo-ocupacao-pico">0%</span>
+                        </div>
+                        <div class="resumo-card">
+                            <span class="resumo-label">Aproveitamento de salas</span>
+                            <span class="resumo-valor" id="dashboard-resumo-aproveitamento">0%</span>
+                        </div>
+                        <div class="resumo-card">
+                            <span class="resumo-label">Salas ativas</span>
+                            <span class="resumo-valor" id="dashboard-resumo-salas">0</span>
+                        </div>
+                        <div class="resumo-card">
+                            <span class="resumo-label">Especialidades ativas</span>
+                            <span class="resumo-valor" id="dashboard-resumo-especialidades">0</span>
+                        </div>
+                        <div class="resumo-card">
+                            <span class="resumo-label">Turnos ativos</span>
+                            <span class="resumo-valor" id="dashboard-resumo-turnos">0</span>
+                        </div>
+                        <div class="resumo-card">
+                            <span class="resumo-label">Salas consideradas</span>
+                            <span class="resumo-valor" id="dashboard-resumo-salas-consideradas">0</span>
+                        </div>
+                    </div>
+                    <div class="comparison-banner" id="dashboard-comparativo-resumo">
+                        <div class="comparison-header">
+                            <div>
+                                <strong>Comparação ativa:</strong>
+                                <span id="dashboard-comparativo-periodo"></span>
+                            </div>
+                            <div class="comparison-actions">
+                                <button class="btn btn-tertiary" type="button" id="dashboard-comparativo-remover">
+                                    <i class="fas fa-xmark"></i>
+                                    <span>Encerrar comparação</span>
+                                </button>
+                            </div>
+                        </div>
+                        <div class="comparison-grid">
+                            <div class="comparison-card">
+                                <span class="comparison-label">Total de agendamentos</span>
+                                <span class="comparison-value" id="dashboard-comparativo-total"></span>
+                                <span class="comparison-diff" id="dashboard-comparativo-total-diff"></span>
+                            </div>
+                            <div class="comparison-card">
+                                <span class="comparison-label">Ocupação média</span>
+                                <span class="comparison-value" id="dashboard-comparativo-ocupacao"></span>
+                                <span class="comparison-diff" id="dashboard-comparativo-ocupacao-diff"></span>
+                            </div>
+                            <div class="comparison-card">
+                                <span class="comparison-label">Aproveitamento médio</span>
+                                <span class="comparison-value" id="dashboard-comparativo-aproveitamento"></span>
+                                <span class="comparison-diff" id="dashboard-comparativo-aproveitamento-diff"></span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="dashboard-grid">
+                        <div class="chart-container">
+                            <div class="chart-header">
+                                <h3>Ocupação por Turno</h3>
+                                <button class="chart-action" data-chart-target="turno" type="button" aria-label="Expandir gráfico de ocupação por turno">
+                                    <i class="fas fa-eye"></i>
+                                </button>
+                            </div>
+                            <canvas id="chart-turno"></canvas>
+                        </div>
+                        <div class="chart-container">
+                            <div class="chart-header">
+                                <h3>Ocupação por Ilha</h3>
+                                <button class="chart-action" data-chart-target="ilha" type="button" aria-label="Expandir gráfico de ocupação por ilha">
+                                    <i class="fas fa-eye"></i>
+                                </button>
+                            </div>
+                            <canvas id="chart-ilha"></canvas>
+                        </div>
+                        <div class="chart-container">
+                            <div class="chart-header">
+                                <h3>Evolução de Ocupação</h3>
+                                <button class="chart-action" data-chart-target="evolucao" type="button" aria-label="Expandir gráfico de evolução de ocupação">
+                                    <i class="fas fa-eye"></i>
+                                </button>
+                            </div>
+                            <canvas id="chart-evolucao"></canvas>
+                            <div class="chart-note" id="chart-evolucao-nota"></div>
+                        </div>
+                        <div class="chart-container">
+                            <div class="chart-header">
+                                <h3>Distribuição por Especialidade</h3>
+                                <button class="chart-action" data-chart-target="especialidade" type="button" aria-label="Expandir gráfico por especialidade">
+                                    <i class="fas fa-eye"></i>
+                                </button>
+                            </div>
+                            <canvas id="chart-especialidade"></canvas>
+                        </div>
+                        <div class="chart-container">
+                            <div class="chart-header">
+                                <h3>Distribuição Geral de Ocupação</h3>
+                                <button class="chart-action" data-chart-target="heatmap" type="button" aria-label="Expandir gráfico de distribuição geral">
+                                    <i class="fas fa-eye"></i>
+                                </button>
+                            </div>
+                            <canvas id="chart-heatmap"></canvas>
+                        </div>
+                        <div class="chart-container">
+                            <div class="chart-header">
+                                <h3>Distribuição por status da sala (ocupação da sala)</h3>
+                                <button class="chart-action" data-chart-target="aproveitamento" type="button" aria-label="Expandir gráfico por status">
+                                    <i class="fas fa-eye"></i>
+                                </button>
+                            </div>
+                            <canvas id="chart-aproveitamento"></canvas>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="dashboard-section" id="relatorios-section">
+                    <h2>Relatórios</h2>
+                    <div class="dashboard-controls">
+                        <input type="date" id="relatorio-data-inicio">
+                        <input type="date" id="relatorio-data-fim">
+                        <button class="btn btn-primary" id="btn-gerar-relatorio">Gerar</button>
+                        <div class="comparison-toggle-group">
+                            <button class="btn btn-secondary" type="button" id="btn-relatorio-comparar">
+                                <i class="fas fa-arrow-right-arrow-left"></i>
+                                <span>Comparar</span>
+                            </button>
+                            <button class="btn btn-tertiary" type="button" id="btn-relatorio-pdf">
+                                <i class="fas fa-file-pdf"></i>
+                                <span>Exportar PDF</span>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="comparison-panel" id="relatorio-comparar-panel">
+                        <div class="comparison-field">
+                            <label for="relatorio-comparar-tipo">Tipo de período</label>
+                            <select id="relatorio-comparar-tipo">
+                                <option value="">Selecione</option>
+                                <option value="dia">Dia específico</option>
+                                <option value="intervalo">Intervalo de datas</option>
+                                <option value="mes">Mês(es)</option>
+                                <option value="ano">Ano(s)</option>
+                            </select>
+                        </div>
+                        <div class="comparison-field" data-comparar="dia">
+                            <label for="relatorio-comparar-dia">Dia para comparação</label>
+                            <input type="date" id="relatorio-comparar-dia">
+                        </div>
+                        <div class="comparison-field" data-comparar="intervalo">
+                            <label>Intervalo</label>
+                            <div class="dashboard-day-range-fields">
+                                <label class="dashboard-day-range-label" for="relatorio-comparar-inicio">
+                                    <span>Início</span>
+                                    <input type="date" id="relatorio-comparar-inicio">
+                                </label>
+                                <label class="dashboard-day-range-label" for="relatorio-comparar-fim">
+                                    <span>Fim</span>
+                                    <input type="date" id="relatorio-comparar-fim">
+                                </label>
+                            </div>
+                        </div>
+                        <div class="comparison-field" data-comparar="mes">
+                            <label for="relatorio-comparar-meses">Meses para comparação</label>
+                            <div class="report-multiselect" data-select-id="relatorio-comparar-meses" data-placeholder="Selecionar meses">
+                                <button type="button" class="report-multiselect-btn">Selecionar meses</button>
+                                <div class="report-multiselect-panel">
+                                    <div class="report-multiselect-actions">
+                                        <button type="button" data-action="select-all">Selecionar todos</button>
+                                        <button type="button" data-action="clear">Limpar</button>
+                                    </div>
+                                    <div class="report-multiselect-options"></div>
+                                </div>
+                            </div>
+                            <select id="relatorio-comparar-meses" multiple class="sr-only-input"></select>
+                        </div>
+                        <div class="comparison-field" data-comparar="ano">
+                            <label for="relatorio-comparar-anos">Anos para comparação</label>
+                            <div class="report-multiselect" data-select-id="relatorio-comparar-anos" data-placeholder="Selecionar anos">
+                                <button type="button" class="report-multiselect-btn">Selecionar anos</button>
+                                <div class="report-multiselect-panel">
+                                    <div class="report-multiselect-actions">
+                                        <button type="button" data-action="select-all">Selecionar todos</button>
+                                        <button type="button" data-action="clear">Limpar</button>
+                                    </div>
+                                    <div class="report-multiselect-options"></div>
+                                </div>
+                            </div>
+                            <select id="relatorio-comparar-anos" multiple class="sr-only-input"></select>
+                        </div>
+                        <div class="comparison-actions">
+                            <button class="btn btn-secondary" type="button" id="relatorio-comparar-aplicar">Aplicar comparação</button>
+                            <button class="btn btn-tertiary" type="button" id="relatorio-comparar-limpar">Remover comparação</button>
+                        </div>
+                    </div>
+                    <div class="filter-toggle-bar">
+                        <button type="button" class="filter-toggle-btn" data-filter-toggle="relatorio-filtros" data-expanded-text="Ocultar filtros" data-collapsed-text="Mostrar filtros" aria-expanded="true" aria-controls="relatorio-filtros">
+                            <i class="fas fa-eye-slash" aria-hidden="true"></i>
+                            <span class="filter-toggle-label">Ocultar filtros</span>
+                        </button>
+                    </div>
+                    <div class="report-filters" id="relatorio-filtros">
+                        <div class="report-filter-field">
+                            <label for="relatorio-filtro-turno">Turnos</label>
+                            <div class="report-multiselect" data-select-id="relatorio-filtro-turno" data-placeholder="Todos os turnos">
+                                <button type="button" class="report-multiselect-btn">Todos os turnos</button>
+                                <div class="report-multiselect-panel">
+                                    <div class="report-multiselect-actions">
+                                        <button type="button" data-action="select-all">Selecionar todos</button>
+                                        <button type="button" data-action="clear">Limpar</button>
+                                    </div>
+                                    <div class="report-multiselect-options"></div>
+                                </div>
+                            </div>
+                            <select id="relatorio-filtro-turno" multiple class="sr-only-input"></select>
+                        </div>
+                        <div class="report-filter-field">
+                            <label for="relatorio-filtro-status">Status</label>
+                            <div class="report-multiselect" data-select-id="relatorio-filtro-status" data-placeholder="Todos os status">
+                                <button type="button" class="report-multiselect-btn">Todos os status</button>
+                                <div class="report-multiselect-panel">
+                                    <div class="report-multiselect-actions">
+                                        <button type="button" data-action="select-all">Selecionar todos</button>
+                                        <button type="button" data-action="clear">Limpar</button>
+                                    </div>
+                                    <div class="report-multiselect-options"></div>
+                                </div>
+                            </div>
+                            <select id="relatorio-filtro-status" multiple class="sr-only-input"></select>
+                        </div>
+                        <div class="report-filter-field">
+                            <label for="relatorio-filtro-ilha">Ilhas</label>
+                            <div class="report-multiselect" data-select-id="relatorio-filtro-ilha" data-placeholder="Todas as ilhas">
+                                <button type="button" class="report-multiselect-btn">Todas as ilhas</button>
+                                <div class="report-multiselect-panel">
+                                    <div class="report-multiselect-actions">
+                                        <button type="button" data-action="select-all">Selecionar todas</button>
+                                        <button type="button" data-action="clear">Limpar</button>
+                                    </div>
+                                    <div class="report-multiselect-options"></div>
+                                </div>
+                            </div>
+                            <select id="relatorio-filtro-ilha" multiple class="sr-only-input"></select>
+                        </div>
+                        <div class="report-filter-field">
+                            <label for="relatorio-filtro-sala">Salas</label>
+                            <div class="report-multiselect" data-select-id="relatorio-filtro-sala" data-placeholder="Todas as salas">
+                                <button type="button" class="report-multiselect-btn">Todas as salas</button>
+                                <div class="report-multiselect-panel">
+                                    <div class="report-multiselect-actions">
+                                        <button type="button" data-action="select-all">Selecionar todas</button>
+                                        <button type="button" data-action="clear">Limpar</button>
+                                    </div>
+                                    <div class="report-multiselect-options"></div>
+                                </div>
+                            </div>
+                            <select id="relatorio-filtro-sala" multiple class="sr-only-input"></select>
+                        </div>
+                        <div class="report-filter-field">
+                            <label for="relatorio-filtro-especialidade">Especialidades</label>
+                            <div class="report-multiselect" data-select-id="relatorio-filtro-especialidade" data-placeholder="Todas as especialidades">
+                                <button type="button" class="report-multiselect-btn">Todas as especialidades</button>
+                                <div class="report-multiselect-panel">
+                                    <div class="report-multiselect-actions">
+                                        <button type="button" data-action="select-all">Selecionar todas</button>
+                                        <button type="button" data-action="clear">Limpar</button>
+                                    </div>
+                                    <div class="report-multiselect-options"></div>
+                                </div>
+                            </div>
+                            <select id="relatorio-filtro-especialidade" multiple class="sr-only-input"></select>
+                        </div>
+                        <div class="report-filter-field">
+                            <label for="relatorio-filtro-categoria">Categorias</label>
+                            <div class="report-multiselect" data-select-id="relatorio-filtro-categoria" data-placeholder="Todas as categorias">
+                                <button type="button" class="report-multiselect-btn">Todas as categorias</button>
+                                <div class="report-multiselect-panel">
+                                    <div class="report-multiselect-actions">
+                                        <button type="button" data-action="select-all">Selecionar todas</button>
+                                        <button type="button" data-action="clear">Limpar</button>
+                                    </div>
+                                    <div class="report-multiselect-options"></div>
+                                </div>
+                            </div>
+                            <select id="relatorio-filtro-categoria" multiple class="sr-only-input"></select>
+                        </div>
+                        <div class="report-filter-field">
+                            <label for="relatorio-filtro-profissional">Profissionais</label>
+                            <div class="report-multiselect" data-select-id="relatorio-filtro-profissional" data-placeholder="Todos os profissionais">
+                                <button type="button" class="report-multiselect-btn">Todos os profissionais</button>
+                                <div class="report-multiselect-panel">
+                                    <div class="report-multiselect-actions">
+                                        <button type="button" data-action="select-all">Selecionar todos</button>
+                                        <button type="button" data-action="clear">Limpar</button>
+                                    </div>
+                                    <div class="report-multiselect-options"></div>
+                                </div>
+                            </div>
+                            <select id="relatorio-filtro-profissional" multiple class="sr-only-input"></select>
+                        </div>
+                        <div class="report-filter-field">
+                            <label for="relatorio-filtro-busca">Busca rápida</label>
+                            <input type="text" id="relatorio-filtro-busca" placeholder="Digite termos para filtrar">
+                        </div>
+                    </div>
+                    <div class="resumo-grid" id="relatorio-resumo">
+                        <div class="resumo-card">
+                            <span class="resumo-label">Período analisado</span>
+                            <span class="resumo-valor" id="relatorio-resumo-periodo">-</span>
+                        </div>
+                        <div class="resumo-card">
+                            <span class="resumo-label">Agendamentos analisados</span>
+                            <span class="resumo-valor" id="relatorio-resumo-total">0</span>
+                        </div>
+                        <div class="resumo-card">
+                            <span class="resumo-label">Dias analisados</span>
+                            <span class="resumo-valor" id="relatorio-resumo-dias">0</span>
+                        </div>
+                        <div class="resumo-card">
+                            <span class="resumo-label">Ocupação média</span>
+                            <span class="resumo-valor" id="relatorio-resumo-ocupacao-media">0%</span>
+                        </div>
+                        <div class="resumo-card">
+                            <span class="resumo-label">Pico de ocupação</span>
+                            <span class="resumo-valor" id="relatorio-resumo-ocupacao-pico">0%</span>
+                        </div>
+                        <div class="resumo-card">
+                            <span class="resumo-label">Aproveitamento de salas</span>
+                            <span class="resumo-valor" id="relatorio-resumo-aproveitamento">0%</span>
+                        </div>
+                        <div class="resumo-card">
+                            <span class="resumo-label">Salas ativas</span>
+                            <span class="resumo-valor" id="relatorio-resumo-salas">0</span>
+                        </div>
+                        <div class="resumo-card">
+                            <span class="resumo-label">Especialidades ativas</span>
+                            <span class="resumo-valor" id="relatorio-resumo-especialidades">0</span>
+                        </div>
+                        <div class="resumo-card">
+                            <span class="resumo-label">Turnos ativos</span>
+                            <span class="resumo-valor" id="relatorio-resumo-turnos">0</span>
+                        </div>
+                        <div class="resumo-card">
+                            <span class="resumo-label">Salas consideradas</span>
+                            <span class="resumo-valor" id="relatorio-resumo-salas-consideradas">0</span>
+                        </div>
+                    </div>
+                    <div class="comparison-banner" id="relatorio-comparativo-resumo">
+                        <div class="comparison-header">
+                            <div>
+                                <strong>Comparação ativa:</strong>
+                                <span id="relatorio-comparativo-periodo"></span>
+                            </div>
+                            <div class="comparison-actions">
+                                <button class="btn btn-tertiary" type="button" id="relatorio-comparativo-remover">
+                                    <i class="fas fa-xmark"></i>
+                                    <span>Encerrar comparação</span>
+                                </button>
+                            </div>
+                        </div>
+                        <div class="comparison-grid">
+                            <div class="comparison-card">
+                                <span class="comparison-label">Total de agendamentos</span>
+                                <span class="comparison-value" id="relatorio-comparativo-total"></span>
+                                <span class="comparison-diff" id="relatorio-comparativo-total-diff"></span>
+                            </div>
+                            <div class="comparison-card">
+                                <span class="comparison-label">Ocupação média</span>
+                                <span class="comparison-value" id="relatorio-comparativo-ocupacao"></span>
+                                <span class="comparison-diff" id="relatorio-comparativo-ocupacao-diff"></span>
+                            </div>
+                            <div class="comparison-card">
+                                <span class="comparison-label">Aproveitamento médio</span>
+                                <span class="comparison-value" id="relatorio-comparativo-aproveitamento"></span>
+                                <span class="comparison-diff" id="relatorio-comparativo-aproveitamento-diff"></span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="table-card">
+                        <div class="table-card-header">
+                            <h3>Resumo diário</h3>
+                        </div>
+                        <table id="relatorio-tabela">
+                            <thead>
+                                <tr>
+                                    <th>Data</th>
+                                    <th>Salas Ocupadas</th>
+                                    <th>Ocupação (%)</th>
+                                    <th>Aproveitamento (%)</th>
+                                    <th>Especialidades</th>
+                                </tr>
+                            </thead>
+                            <tbody></tbody>
+                        </table>
+                    </div>
+                    <div class="table-card">
+                        <div class="table-card-header">
+                            <h3>Detalhamento de agendamentos</h3>
+                        </div>
+                        <table id="relatorio-detalhado">
+                            <thead>
+                                <tr>
+                                    <th>Data</th>
+                                    <th>Sala</th>
+                                    <th>Ilha</th>
+                                    <th>Turno</th>
+                                    <th>Horário</th>
+                                    <th>Especialidade</th>
+                                    <th>Categoria</th>
+                                    <th>Profissional</th>
+                                    <th>Status</th>
+                                </tr>
+                            </thead>
+                            <tbody></tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <div class="dashboard-section" id="sala-mes-section">
+                    <h2>Acompanhamento Salas</h2>
+                    <div class="status-map-card">
+                        <div class="status-map-header">
+                            <div class="status-map-title">
+                                <h3>Salas por status no período</h3>
+                                <p class="status-map-description">Clique em uma ilha para visualizar os dias disponíveis e, em seguida, explore as salas em cada dia.</p>
+                            </div>
+                            <div class="status-map-legend" aria-label="Legenda de status">
+                                <span class="status-map-legend-item status-map-legend-livre">
+                                    <span class="status-map-legend-bullet"></span>
+                                    Livre
+                                </span>
+                                <span class="status-map-legend-item status-map-legend-ocupado">
+                                    <span class="status-map-legend-bullet"></span>
+                                    Ocupado
+                                </span>
+                                <span class="status-map-legend-item status-map-legend-reservado">
+                                    <span class="status-map-legend-bullet"></span>
+                                    Reservado
+                                </span>
+                                <span class="status-map-legend-item status-map-legend-bloqueado">
+                                    <span class="status-map-legend-bullet"></span>
+                                    Bloqueado
+                                </span>
+                            </div>
+                            <div class="status-map-toolbar">
+                                <div class="status-map-period">
+                                    <div class="status-map-control">
+                                        <label for="sala-mes-periodo-tipo">Período</label>
+                                        <select id="sala-mes-periodo-tipo" class="status-map-select">
+                                            <option value="mes">Mês</option>
+                                            <option value="semana">Semana</option>
+                                            <option value="dia">Dia</option>
+                                        </select>
+                                    </div>
+                                    <div class="status-map-periodo-detalhes" id="sala-mes-periodo-detalhes">
+                                        <div class="status-map-periodo-field" data-periodo="mes">
+                                            <label for="sala-mes-periodo-meses">Meses</label>
+                                            <div class="report-multiselect" data-select-id="sala-mes-periodo-meses" data-placeholder="Selecione os meses">
+                                                <button type="button" class="report-multiselect-btn">Selecionar meses</button>
+                                                <div class="report-multiselect-panel">
+                                                    <div class="report-multiselect-actions">
+                                                        <button type="button" data-action="select-all">Selecionar todos</button>
+                                                        <button type="button" data-action="clear">Limpar</button>
+                                                    </div>
+                                                    <div class="report-multiselect-options"></div>
+                                                </div>
+                                            </div>
+                                            <select id="sala-mes-periodo-meses" multiple class="sr-only-input"></select>
+                                        </div>
+                                        <div class="status-map-periodo-field" data-periodo="semana" data-field="meses">
+                                            <label for="sala-mes-periodo-semana-meses">Meses</label>
+                                            <div class="report-multiselect" data-select-id="sala-mes-periodo-semana-meses" data-placeholder="Selecione os meses">
+                                                <button type="button" class="report-multiselect-btn">Meses</button>
+                                                <div class="report-multiselect-panel">
+                                                    <div class="report-multiselect-actions">
+                                                        <button type="button" data-action="select-all">Selecionar todos</button>
+                                                        <button type="button" data-action="clear">Limpar</button>
+                                                    </div>
+                                                    <div class="report-multiselect-options"></div>
+                                                </div>
+                                            </div>
+                                            <select id="sala-mes-periodo-semana-meses" multiple class="sr-only-input"></select>
+                                        </div>
+                                        <div class="status-map-periodo-field" data-periodo="semana" data-field="semanas">
+                                            <label for="sala-mes-periodo-semanas">Semanas do mês</label>
+                                            <div class="report-multiselect" data-select-id="sala-mes-periodo-semanas" data-placeholder="Selecione as semanas">
+                                                <button type="button" class="report-multiselect-btn">Semanas</button>
+                                                <div class="report-multiselect-panel">
+                                                    <div class="report-multiselect-actions">
+                                                        <button type="button" data-action="select-all">Selecionar todas</button>
+                                                        <button type="button" data-action="clear">Limpar</button>
+                                                    </div>
+                                                    <div class="report-multiselect-options"></div>
+                                                </div>
+                                            </div>
+                                            <select id="sala-mes-periodo-semanas" multiple class="sr-only-input"></select>
+                                            <span class="status-map-periodo-hint">Combine semanas e meses para refinar a busca.</span>
+                                        </div>
+                                        <div class="status-map-periodo-field" data-periodo="dia">
+                                            <span class="status-map-periodo-label">Selecione o intervalo</span>
+                                            <div class="status-map-day-selector" id="sala-mes-dia-selector">
+                                                <label class="status-map-day-option">
+                                                    <input type="radio" name="sala-mes-dia-modo" value="hoje" checked>
+                                                    Hoje
+                                                </label>
+                                                <label class="status-map-day-option status-map-day-option-data">
+                                                    <input type="radio" name="sala-mes-dia-modo" value="data">
+                                                    <span>Escolher dia</span>
+                                                    <input type="date" id="sala-mes-dia-unico" aria-label="Escolher dia específico">
+                                                </label>
+                                                <label class="status-map-day-option">
+                                                    <input type="radio" name="sala-mes-dia-modo" value="intervalo">
+                                                    Intervalo
+                                                </label>
+                                            </div>
+                                            <div class="status-map-day-range" id="sala-mes-dia-range">
+                                                <label>
+                                                    Início
+                                                    <input type="date" id="sala-mes-dia-inicio" aria-label="Data inicial do intervalo">
+                                                </label>
+                                                <label>
+                                                    Fim
+                                                    <input type="date" id="sala-mes-dia-fim" aria-label="Data final do intervalo">
+                                                </label>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="status-map-control status-map-control-status">
+                                    <label for="sala-mes-status-visualizacao">Status</label>
+                                    <select id="sala-mes-status-visualizacao" class="status-map-select">
+                                        <option value="livre">Livre</option>
+                                    </select>
+                                </div>
+                                <div class="status-map-filters" id="sala-mes-filtros">
+                                    <div class="status-map-control status-map-control-turno">
+                                        <label for="sala-mes-filtro-turno">Turnos</label>
+                                        <div class="report-multiselect" data-select-id="sala-mes-filtro-turno" data-placeholder="Todos os turnos">
+                                            <button type="button" class="report-multiselect-btn">Todos os turnos</button>
+                                            <div class="report-multiselect-panel">
+                                                <div class="report-multiselect-actions">
+                                                    <button type="button" data-action="select-all">Selecionar todos</button>
+                                                    <button type="button" data-action="clear">Limpar</button>
+                                                </div>
+                                                <div class="report-multiselect-options"></div>
+                                            </div>
+                                        </div>
+                                        <select id="sala-mes-filtro-turno" multiple class="sr-only-input"></select>
+                                    </div>
+                                </div>
+                                <div class="status-map-actions">
+                                    <button type="button" id="sala-mes-aplicar" class="status-map-apply-btn" disabled>
+                                        <i class="fas fa-sync-alt" aria-hidden="true"></i>
+                                        <span>Aplicar filtros</span>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                        <div id="sala-mes-status-feedback" class="status-map-feedback" aria-live="polite"></div>
+                        <div id="sala-mes-status-lista" class="status-tree"></div>
+                    </div>
+                </div>
+
+            </div>
+
+        </div>
+    </div>
+
+    <!-- Modal de Detalhes da Sala -->
+    <div class="modal" id="sala-modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2><i class="fas fa-door-open"></i> Detalhes da Sala <span id="modal-sala-numero"></span></h2>
+                <button class="close-modal" data-skip-busy="true">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="sala-info">
+                    <div class="info-card">
+                        <h3><i class="fas fa-info-circle"></i> Informações Gerais</h3>
+                        <p><strong>Status Geral:</strong> <span id="info-status">Livre</span></p>
+                        <p><strong>Motivo:</strong> <span id="info-motivo">-</span></p>
+                        <p><strong>Ilha Atribuída:</strong> <span id="info-ilha">-</span></p>
+                        <p><strong>Turno Atual:</strong> <span id="info-turno">Manhã</span></p>
+                    </div>
+                    <div class="info-card">
+                        <h3><i class="fas fa-chart-bar"></i> Estatísticas do Dia</h3>
+                        <p><strong>Horários Ocupados:</strong> <span id="info-ocupados">0</span></p>
+                        <p><strong>Horários Livres:</strong> <span id="info-livres">6</span></p>
+                        <p><strong>Próxima Disponibilidade:</strong> <span id="info-proxima">13:00</span></p>
+                    </div>
+                </div>
+                
+                <h3><i class="fas fa-list-alt"></i> Agendamentos do Dia</h3>
+                <div class="agendamentos-list" id="agendamentos-list">
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal" id="chart-modal">
+        <div class="modal-content chart-modal-content">
+            <div class="modal-header">
+                <h2 class="modal-title" id="chart-modal-title"><i class="fas fa-chart-pie"></i> Visualização detalhada</h2>
+                <button class="close-modal" data-skip-busy="true">&times;</button>
+            </div>
+            <div class="modal-body chart-modal-body">
+                <canvas id="chart-modal-canvas"></canvas>
+                <ul class="chart-modal-details" id="chart-modal-detalhes"></ul>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal de Cadastro -->
+    <div class="modal" id="cadastro-modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2><i class="fas fa-calendar-plus"></i> Novo Agendamento</h2>
+                <button class="close-modal" data-skip-busy="true">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="alert alert-error" id="alert-conflito">
+                    <i class="fas fa-exclamation-triangle"></i> <span id="alert-message"></span>
+                </div>
+                <form class="form-cadastro" id="form-cadastro">
+                    <div class="form-group">
+                        <label for="cadastro-sala"><i class="fas fa-door-closed"></i> Sala</label>
+                        <select id="cadastro-sala" required>
+                            <option value="">Selecione uma sala</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="cadastro-turno"><i class="fas fa-clock"></i> Turno</label>
+                        <select id="cadastro-turno" required>
+                            <option value="">Selecione um turno</option>
+                            <option value="manha">Manhã (7h-13h)</option>
+                            <option value="tarde">Tarde (13h-19h)</option>
+                            <option value="noite">Noite (19h-7h)</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="cadastro-data-inicio"><i class="fas fa-calendar-day"></i> Data Início</label>
+                        <input type="date" id="cadastro-data-inicio" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="cadastro-data-fim"><i class="fas fa-calendar-day"></i> Data Fim</label>
+                        <input type="date" id="cadastro-data-fim" required>
+                    </div>
+                    <div class="form-group form-full">
+                        <input type="checkbox" id="agendar-dias-especificos">
+                        <label for="agendar-dias-especificos">Agendar apenas em dias específicos</label>
+                    </div>
+                    <div id="dias-selecao" class="form-group form-full" style="display:none;">
+                        <label>Dias da Semana:</label>
+                        <div style="display: flex; gap: 10px;">
+                            <label><input type="checkbox" value="0" class="dia-semana"> Dom</label>
+                            <label><input type="checkbox" value="1" class="dia-semana"> Seg</label>
+                            <label><input type="checkbox" value="2" class="dia-semana"> Ter</label>
+                            <label><input type="checkbox" value="3" class="dia-semana"> Qua</label>
+                            <label><input type="checkbox" value="4" class="dia-semana"> Qui</label>
+                            <label><input type="checkbox" value="5" class="dia-semana"> Sex</label>
+                            <label><input type="checkbox" value="6" class="dia-semana"> Sáb</label>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label for="cadastro-hora-inicio"><i class="fas fa-hourglass-start"></i> Hora Início</label>
+                        <input type="time" id="cadastro-hora-inicio" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="cadastro-hora-fim"><i class="fas fa-hourglass-end"></i> Hora Fim</label>
+                        <input type="time" id="cadastro-hora-fim" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="cadastro-especialidade"><i class="fas fa-stethoscope"></i> Especialidade</label>
+                        <select id="cadastro-especialidade" required>
+                            <option value="">Selecione uma especialidade</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="cadastro-profissional"><i class="fas fa-user-md"></i> Profissional</label>
+                        <input type="text" id="cadastro-profissional" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="cadastro-categoria"><i class="fas fa-tag"></i> Categoria</label>
+                        <select id="cadastro-categoria" required>
+                            <option value="">Selecione uma categoria</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="cadastro-ilha"><i class="fas fa-umbrella-beach"></i> Ilha</label>
+                        <select id="cadastro-ilha" required>
+                            <option value="">Selecione uma ilha</option>
+                        </select>
+                    </div>
+                    <div class="form-group form-full">
+                        <label for="cadastro-observacoes"><i class="fas fa-sticky-note"></i> Observações</label>
+                        <textarea id="cadastro-observacoes" rows="3" placeholder="Adicione observações sobre este agendamento..."></textarea>
+                    </div>
+                    <div class="form-actions">
+                        <button type="button" class="btn btn-secondary" id="btn-cancelar">
+                            <i class="fas fa-times"></i> Cancelar
+                        </button>
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-save"></i> Salvar Agendamento
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal de Inserção no Planejamento -->
+    <div class="modal" id="planejamento-inserir-modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2><i class="fas fa-user-plus"></i> Inserir profissional no planejamento</h2>
+                <button class="close-modal" data-skip-busy="true">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="modal-loading-overlay" id="planejamento-inserir-loading">
+                    <div class="modal-loading-content">
+                        <i class="fas fa-circle-notch"></i>
+                        <p id="planejamento-inserir-loading-text">Processando solicitação...</p>
+                    </div>
+                </div>
+                <div class="alert alert-error" id="planejamento-inserir-alert" style="display: none;">
+                    <i class="fas fa-exclamation-triangle"></i> <span id="planejamento-inserir-message"></span>
+                </div>
+                <form class="form-cadastro" id="form-planejamento-inserir">
+                    <div class="form-group">
+                        <label for="planejamento-inserir-data"><i class="fas fa-calendar-day"></i> Data</label>
+                        <input type="date" id="planejamento-inserir-data" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="planejamento-inserir-turno"><i class="fas fa-clock"></i> Turno</label>
+                        <select id="planejamento-inserir-turno" required>
+                            <option value="manha">Manhã (7h-13h)</option>
+                            <option value="tarde">Tarde (13h-19h)</option>
+                            <option value="noite">Noite (19h-7h)</option>
+                            <option value="todos">Integral</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="planejamento-inserir-hora-inicio"><i class="fas fa-hourglass-start"></i> Hora início</label>
+                        <input type="time" id="planejamento-inserir-hora-inicio" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="planejamento-inserir-hora-fim"><i class="fas fa-hourglass-end"></i> Hora fim</label>
+                        <input type="time" id="planejamento-inserir-hora-fim" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="planejamento-inserir-sala"><i class="fas fa-door-closed"></i> Sala</label>
+                        <select id="planejamento-inserir-sala" required>
+                            <option value="">Selecione uma sala</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="planejamento-inserir-ilha"><i class="fas fa-umbrella-beach"></i> Ilha</label>
+                        <select id="planejamento-inserir-ilha" required>
+                            <option value="">Selecione uma ilha</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="planejamento-inserir-especialidade"><i class="fas fa-stethoscope"></i> Especialidade</label>
+                        <select id="planejamento-inserir-especialidade" required>
+                            <option value="">Selecione uma especialidade</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="planejamento-inserir-categoria"><i class="fas fa-tag"></i> Categoria</label>
+                        <select id="planejamento-inserir-categoria" required>
+                            <option value="">Selecione uma categoria</option>
+                        </select>
+                    </div>
+                    <div class="form-group form-full">
+                        <label for="planejamento-inserir-profissional"><i class="fas fa-user-md"></i> Profissional</label>
+                        <input type="text" id="planejamento-inserir-profissional" required>
+                    </div>
+                    <div class="form-group form-full">
+                        <label for="planejamento-inserir-observacoes"><i class="fas fa-sticky-note"></i> Observações</label>
+                        <textarea id="planejamento-inserir-observacoes" rows="3" placeholder="Observações opcionais"></textarea>
+                    </div>
+                    <div class="form-actions">
+                        <button type="button" class="btn btn-secondary" id="planejamento-inserir-cancelar">
+                            <i class="fas fa-times"></i> Cancelar
+                        </button>
+                        <button type="submit" class="btn btn-success">
+                            <i class="fas fa-save"></i> Salvar e inserir
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal" id="planejamento-frequencia-modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2><i class="fas fa-user-check"></i> Registrar frequência</h2>
+                <button class="close-modal" data-skip-busy="true">&times;</button>
+            </div>
+            <div class="modal-body">
+                <p class="modal-subtitle" id="planejamento-frequencia-resumo"></p>
+                <div class="alert alert-warning" id="planejamento-frequencia-status" style="display: none;">
+                    <i class="fas fa-info-circle"></i> <span id="planejamento-frequencia-status-texto"></span>
+                </div>
+                <div class="alert alert-error" id="planejamento-frequencia-alert" style="display: none;">
+                    <i class="fas fa-exclamation-triangle"></i> <span id="planejamento-frequencia-message"></span>
+                </div>
+                <form class="form-cadastro" id="form-planejamento-frequencia">
+                    <input type="hidden" id="planejamento-frequencia-id">
+                    <div class="form-group">
+                        <label for="planejamento-frequencia-chegada"><i class="fas fa-right-to-bracket"></i> Hora de chegada real</label>
+                        <input type="time" id="planejamento-frequencia-chegada">
+                    </div>
+                    <div class="form-group">
+                        <label for="planejamento-frequencia-saida"><i class="fas fa-right-from-bracket"></i> Hora de saída real</label>
+                        <input type="time" id="planejamento-frequencia-saida">
+                    </div>
+                    <div class="form-actions">
+                        <button type="button" class="btn btn-secondary" id="planejamento-frequencia-cancelar">
+                            <i class="fas fa-times"></i> Cancelar
+                        </button>
+                        <button type="submit" class="btn btn-primary" id="planejamento-frequencia-salvar">
+                            <i class="fas fa-save"></i> Salvar frequência
+                        </button>
+                        <button type="button" class="btn btn-danger" id="planejamento-frequencia-faltou">
+                            <i class="fas fa-user-xmark"></i> Marcar como faltou
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal" id="planejamento-registro-rapido-modal">
+        <div class="modal-content modal-compact">
+            <div class="modal-header">
+                <h2><i class="fas fa-stopwatch"></i> Registro rápido</h2>
+                <button class="close-modal" data-skip-busy="true">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="alert alert-error" id="planejamento-registro-rapido-alert" style="display: none;">
+                    <i class="fas fa-exclamation-triangle"></i> <span id="planejamento-registro-rapido-message"></span>
+                </div>
+                <div class="planejamento-registro-rapido-info">
+                    <p class="planejamento-registro-rapido-profissional" id="planejamento-registro-rapido-profissional"></p>
+                    <p class="planejamento-registro-rapido-resumo" id="planejamento-registro-rapido-resumo"></p>
+                    <p class="planejamento-registro-rapido-status" id="planejamento-registro-rapido-status"></p>
+                    <p class="planejamento-registro-rapido-horario" id="planejamento-registro-rapido-horario"></p>
+                </div>
+                <div class="planejamento-registro-rapido-acoes">
+                    <button type="button" class="btn btn-secondary" id="planejamento-registro-rapido-cancelar">
+                        <i class="fas fa-times"></i> Cancelar
+                    </button>
+                    <button type="button" class="btn btn-success" id="planejamento-registro-rapido-confirmar">
+                        <i class="fas fa-check"></i> Confirmar
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal de Bloqueio -->
+    <div class="modal" id="bloqueio-modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2><i class="fas fa-lock"></i> Gerenciar Status das Salas</h2>
+                <button class="close-modal" data-skip-busy="true">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="bloqueio-multiplo">
+                    <h3><i class="fas fa-check-square"></i> Seleção Múltipla de Salas</h3>
+                    <div class="salas-selecao" id="salas-selecao">
+                        <!-- Salas serão preenchidas dinamicamente -->
+                    </div>
+                </div>
+                <form id="form-bloqueio">
+                    <div class="form-group">
+                        <label for="bloqueio-status"><i class="fas fa-circle"></i> Status</label>
+                        <select id="bloqueio-status" required>
+                            <option value="livre">Livre (Desbloquear)</option>
+                            <option value="bloqueada">Bloqueada</option>
+                            <option value="reservada">Reservada</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="bloqueio-motivo"><i class="fas fa-sticky-note"></i> Motivo</label>
+                        <textarea id="bloqueio-motivo" rows="3" placeholder="Informe o motivo do bloqueio..."></textarea>
+                    </div>
+                    <div class="form-actions">
+                        <button type="button" class="btn btn-secondary" id="btn-cancelar-bloqueio">
+                            <i class="fas fa-times"></i> Cancelar
+                        </button>
+                        <button type="submit" class="btn btn-danger">
+                            <i class="fas fa-save"></i> Aplicar Status
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Esqueceu Senha -->
+    <div class="modal" id="forgot-modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2><i class="fas fa-key"></i> Recuperar Senha</h2>
+                <button class="close-modal" data-skip-busy="true">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="alert alert-success" id="forgot-alert" style="display: none;">
+                    <i class="fas fa-check-circle"></i> <span id="forgot-message"></span>
+                </div>
+                <form id="form-forgot">
+                    <div class="form-group">
+                        <label for="forgot-matricula"><i class="fas fa-id-badge"></i> Matrícula</label>
+                        <input type="text" id="forgot-matricula" required>
+                    </div>
+                    <div class="form-actions">
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-envelope"></i> Enviar Solicitação
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Cadastrar Usuário -->
+    <div class="modal" id="usuario-modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2><i class="fas fa-user-plus"></i> Cadastrar Usuário</h2>
+                <button class="close-modal" data-skip-busy="true">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="alert alert-error" id="usuario-alert" style="display: none;">
+                    <i class="fas fa-exclamation-triangle"></i> <span id="usuario-message"></span>
+                </div>
+                <form class="form-cadastro" id="form-usuario">
+                    <div class="form-group">
+                        <label for="usuario-nome"><i class="fas fa-user"></i> Nome Completo</label>
+                        <input type="text" id="usuario-nome" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="usuario-matricula"><i class="fas fa-id-badge"></i> Matrícula</label>
+                        <input type="text" id="usuario-matricula" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="usuario-setor"><i class="fas fa-building"></i> Setor</label>
+                        <input type="text" id="usuario-setor" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="usuario-senha"><i class="fas fa-lock"></i> Senha</label>
+                        <input type="password" id="usuario-senha" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="usuario-role"><i class="fas fa-user-shield"></i> Nível de Acesso</label>
+                        <select id="usuario-role" required>
+                            <option value="user">Usuário</option>
+                            <option value="admin">Administrador</option>
+                        </select>
+                    </div>
+                    <div class="form-actions">
+                        <button type="button" class="btn btn-secondary close-modal">
+                            <i class="fas fa-times"></i> Cancelar
+                        </button>
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-save"></i> Cadastrar
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Novo Modal para Mover Agendamento -->
+    <div class="modal" id="mover-modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2><i class="fas fa-exchange-alt"></i> Mover Profissional para Outra Sala</h2>
+                <button class="close-modal" data-skip-busy="true">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="alert alert-error" id="mover-alert" style="display: none;">
+                    <i class="fas fa-exclamation-triangle"></i> <span id="mover-message"></span>
+                </div>
+                <form id="form-mover">
+                    <div class="form-group form-full">
+                        <label for="mover-sala-destino"><i class="fas fa-door-closed"></i> Sala Destino</label>
+                        <select id="mover-sala-destino" required>
+                            <option value="">Selecione uma sala</option>
+                        </select>
+                    </div>
+                    <div class="form-actions">
+                        <button type="button" class="btn btn-secondary close-modal">
+                            <i class="fas fa-times"></i> Cancelar
+                        </button>
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-exchange-alt"></i> Mover/Trocar
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal" id="editar-modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2><i class="fas fa-user-edit"></i> Editar Informações do Agendamento</h2>
+                <button class="close-modal" data-skip-busy="true">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="alert alert-error" id="editar-alert" style="display: none;">
+                    <i class="fas fa-exclamation-triangle"></i> <span id="editar-message"></span>
+                </div>
+                <form id="form-editar">
+                    <div class="form-group">
+                        <label for="editar-profissional"><i class="fas fa-user-md"></i> Profissional</label>
+                        <input type="text" id="editar-profissional" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="editar-especialidade"><i class="fas fa-stethoscope"></i> Especialidade</label>
+                        <select id="editar-especialidade" required></select>
+                    </div>
+                    <div class="form-group">
+                        <label for="editar-categoria"><i class="fas fa-tag"></i> Categoria</label>
+                        <select id="editar-categoria" required></select>
+                    </div>
+                    <div class="form-group">
+                        <label for="editar-sala"><i class="fas fa-door-open"></i> Sala</label>
+                        <select id="editar-sala" required></select>
+                    </div>
+                    <div class="form-group">
+                        <label for="editar-status"><i class="fas fa-circle"></i> Status</label>
+                        <select id="editar-status" required>
+                            <option value="ocupado">Ocupado</option>
+                            <option value="reservado">Reservado</option>
+                            <option value="bloqueado">Bloqueado</option>
+                            <option value="livre">Livre</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="editar-turno"><i class="fas fa-clock"></i> Turno</label>
+                        <select id="editar-turno" required>
+                            <option value="manha">Manhã</option>
+                            <option value="tarde">Tarde</option>
+                            <option value="noite">Noite</option>
+                            <option value="todos">Integral</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="editar-hora-inicio"><i class="fas fa-hourglass-start"></i> Hora Início</label>
+                        <input type="time" id="editar-hora-inicio" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="editar-hora-fim"><i class="fas fa-hourglass-end"></i> Hora Fim</label>
+                        <input type="time" id="editar-hora-fim" required>
+                    </div>
+                    <div class="form-group form-full">
+                        <label for="editar-observacoes"><i class="fas fa-sticky-note"></i> Observações</label>
+                        <textarea id="editar-observacoes" rows="3"></textarea>
+                    </div>
+                    <div class="form-actions">
+                        <button type="button" class="btn btn-secondary close-modal">
+                            <i class="fas fa-times"></i> Cancelar
+                        </button>
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-save"></i> Salvar alterações
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <div class="drawer-backdrop" id="drawer-backdrop" aria-hidden="true"></div>
+
+    <?!= include('script'); ?>
+</body>
+</html>
