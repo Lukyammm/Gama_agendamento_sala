@@ -6053,4 +6053,462 @@
               align-items: flex-start;
           }
       }
+
+      .gestao-cadastros {
+          background: var(--surface-elevated);
+          border: 1px solid var(--border-soft);
+          border-radius: var(--radius-lg);
+          box-shadow: var(--shadow-soft);
+          padding: clamp(20px, 2vw, 28px);
+          display: flex;
+          flex-direction: column;
+          gap: clamp(18px, 2vw, 24px);
+          position: relative;
+      }
+
+      .gestao-cadastros.is-loading::after {
+          content: '';
+          position: absolute;
+          inset: 0;
+          background: rgba(8, 14, 24, 0.65);
+          border-radius: inherit;
+          z-index: 6;
+      }
+
+      .gestao-cadastros.is-loading::before {
+          content: '';
+          position: absolute;
+          top: 50%;
+          left: 50%;
+          width: 42px;
+          height: 42px;
+          margin: -21px 0 0 -21px;
+          border-radius: 50%;
+          border: 4px solid rgba(255, 255, 255, 0.35);
+          border-top-color: var(--primary);
+          animation: spin 0.9s linear infinite;
+          z-index: 7;
+      }
+
+      .gestao-cadastros-header {
+          display: flex;
+          justify-content: space-between;
+          gap: 18px;
+          flex-wrap: wrap;
+          align-items: flex-start;
+      }
+
+      .gestao-cadastros-heading h2 {
+          margin: 0 0 6px;
+          font-size: clamp(1.3rem, 1.1rem + 0.6vw, 1.8rem);
+          display: flex;
+          align-items: center;
+          gap: 10px;
+      }
+
+      .gestao-cadastros-heading p {
+          margin: 0;
+          color: var(--text-muted);
+          max-width: 640px;
+      }
+
+      .gestao-cadastros-actions {
+          display: flex;
+          flex-wrap: wrap;
+          align-items: center;
+          gap: 12px;
+      }
+
+      .gestao-cadastros-update {
+          font-size: 0.95rem;
+          color: var(--text-muted);
+      }
+
+      .gestao-cadastros-stats {
+          display: grid;
+          gap: 14px;
+          grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      }
+
+      .gestao-stat-card {
+          background: var(--surface-subtle);
+          border: 1px solid var(--border-soft);
+          border-radius: var(--radius-md);
+          padding: 16px;
+          display: flex;
+          gap: 14px;
+          align-items: center;
+          min-height: 84px;
+          transition: transform var(--transition-fast), border-color var(--transition-fast);
+      }
+
+      .gestao-stat-card:hover,
+      .gestao-stat-card:focus-within {
+          border-color: var(--primary);
+          transform: translateY(-2px);
+      }
+
+      .gestao-stat-icon {
+          width: 42px;
+          height: 42px;
+          border-radius: 50%;
+          display: grid;
+          place-items: center;
+          background: var(--primary-soft);
+          color: var(--primary-100);
+          flex-shrink: 0;
+      }
+
+      .gestao-stat-card strong {
+          font-size: 1.4rem;
+          display: block;
+          color: var(--text-primary);
+      }
+
+      .gestao-stat-card span {
+          color: var(--text-muted);
+          font-size: 0.95rem;
+      }
+
+      .gestao-cadastros-feedback {
+          display: none;
+          padding: 14px 16px;
+          border-radius: var(--radius-md);
+          border: 1px solid transparent;
+          font-weight: 500;
+      }
+
+      .gestao-cadastros-feedback.is-visible {
+          display: block;
+      }
+
+      .gestao-cadastros-feedback.success {
+          background: var(--success-soft);
+          border-color: rgba(43, 165, 143, 0.4);
+          color: var(--success);
+      }
+
+      .gestao-cadastros-feedback.error {
+          background: var(--danger-soft);
+          border-color: rgba(229, 115, 115, 0.5);
+          color: var(--danger);
+      }
+
+      .gestao-cadastros-tabs {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 8px;
+      }
+
+      .gestao-cadastros-tab {
+          border: 1px solid transparent;
+          border-radius: var(--radius-md);
+          background: var(--surface-subtle);
+          color: var(--text-secondary);
+          padding: 10px 16px;
+          display: inline-flex;
+          gap: 8px;
+          align-items: center;
+          font-weight: 600;
+          cursor: pointer;
+          transition: background var(--transition-fast), color var(--transition-fast), border-color var(--transition-fast);
+      }
+
+      .gestao-cadastros-tab:hover,
+      .gestao-cadastros-tab:focus-visible {
+          border-color: var(--primary-300);
+          color: var(--primary-100);
+      }
+
+      .gestao-cadastros-tab.active {
+          background: var(--primary);
+          color: #fff;
+          border-color: var(--primary-500);
+      }
+
+      .gestao-cadastros-panels {
+          background: var(--surface-highlight);
+          border-radius: var(--radius-md);
+          border: 1px solid var(--border-soft);
+          padding: clamp(18px, 2vw, 24px);
+      }
+
+      .gestao-cadastros-panel[hidden] {
+          display: none;
+      }
+
+      .gestao-painel-descricao {
+          margin-bottom: 18px;
+          color: var(--text-muted);
+      }
+
+      .gestao-cadastros-duas-colunas {
+          display: grid;
+          gap: clamp(16px, 2vw, 22px);
+          grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      }
+
+      .gestao-card {
+          background: var(--surface-base);
+          border-radius: var(--radius-md);
+          border: 1px solid var(--border-soft);
+          padding: clamp(16px, 1.8vw, 22px);
+          display: flex;
+          flex-direction: column;
+          gap: clamp(12px, 1.2vw, 16px);
+          min-height: 100%;
+      }
+
+      .gestao-card header h3 {
+          margin: 0;
+          font-size: 1.1rem;
+          display: flex;
+          align-items: center;
+          gap: 10px;
+      }
+
+      .gestao-card header p {
+          margin: 4px 0 0;
+          color: var(--text-muted);
+      }
+
+      .gestao-card form,
+      .gestao-card .form-grid {
+          display: flex;
+          flex-direction: column;
+          gap: 12px;
+      }
+
+      .gestao-card .form-grid {
+          flex-direction: row;
+          flex-wrap: wrap;
+          align-items: flex-end;
+          gap: 12px 16px;
+      }
+
+      .gestao-card .form-field {
+          flex: 1;
+          min-width: 180px;
+          display: flex;
+          flex-direction: column;
+          gap: 6px;
+      }
+
+      .gestao-card label {
+          font-weight: 600;
+          font-size: 0.95rem;
+      }
+
+      .gestao-card input,
+      .gestao-card select,
+      .gestao-card textarea {
+          background: var(--surface-input);
+          border: 1px solid var(--border-soft);
+          border-radius: var(--radius-sm);
+          padding: 10px 12px;
+          color: var(--text-primary);
+      }
+
+      .gestao-card input.is-invalid,
+      .gestao-card select.is-invalid {
+          border-color: var(--danger);
+          box-shadow: 0 0 0 2px rgba(229, 115, 115, 0.18);
+      }
+
+      .gestao-card input:focus,
+      .gestao-card select:focus {
+          outline: 2px solid var(--primary);
+          border-color: var(--primary);
+      }
+
+      .input-feedback {
+          min-height: 18px;
+          font-size: 0.85rem;
+          color: var(--danger);
+      }
+
+      .gestao-card .form-actions {
+          display: flex;
+          gap: 10px;
+          flex-wrap: wrap;
+      }
+
+      .gestao-table-wrapper {
+          overflow-x: auto;
+          border-radius: var(--radius-sm);
+      }
+
+      .gestao-table-wrapper table {
+          width: 100%;
+          border-collapse: collapse;
+          min-width: 280px;
+      }
+
+      .gestao-table-wrapper th,
+      .gestao-table-wrapper td {
+          text-align: left;
+          padding: 10px 12px;
+          border-bottom: 1px solid var(--border-soft);
+          vertical-align: middle;
+      }
+
+      .gestao-table-wrapper tbody tr:hover {
+          background: var(--surface-subtle);
+      }
+
+      .gestao-table-wrapper tbody tr:last-child td {
+          border-bottom: none;
+      }
+
+      .col-acoes {
+          width: 140px;
+          text-align: right;
+      }
+
+      .gestao-table-wrapper .acao-btn {
+          display: inline-flex;
+          align-items: center;
+          gap: 6px;
+          padding: 6px 10px;
+          border-radius: var(--radius-sm);
+          border: 1px solid transparent;
+          background: transparent;
+          color: var(--text-secondary);
+          cursor: pointer;
+          transition: color var(--transition-fast), border-color var(--transition-fast), background var(--transition-fast);
+      }
+
+      .gestao-table-wrapper .acao-btn:hover,
+      .gestao-table-wrapper .acao-btn:focus-visible {
+          color: var(--primary-100);
+          border-color: var(--primary-300);
+          background: var(--primary-soft);
+      }
+
+      .gestao-ilha-resumo {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 10px;
+          color: var(--text-muted);
+          font-size: 0.95rem;
+      }
+
+      .gestao-salas-layout {
+          display: grid;
+          gap: 16px;
+          grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+          margin-bottom: 16px;
+      }
+
+      .gestao-sala-lote-status {
+          margin: 0;
+          color: var(--text-muted);
+          font-size: 0.9rem;
+      }
+
+      .gestao-salas-tabela .col-check {
+          width: 48px;
+          text-align: center;
+      }
+
+      .gestao-salas-tabela input[type="checkbox"] {
+          width: 18px;
+          height: 18px;
+      }
+
+      .gestao-historico-filtros {
+          background: var(--surface-base);
+          border-radius: var(--radius-md);
+          border: 1px solid var(--border-soft);
+          padding: 16px;
+          display: flex;
+          flex-direction: column;
+          gap: 12px;
+      }
+
+      .filtro-grid {
+          display: grid;
+          gap: 12px 16px;
+          grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      }
+
+      .form-field-periodo .periodo-wrapper {
+          display: flex;
+          align-items: center;
+          gap: 10px;
+      }
+
+      .periodo-separador {
+          color: var(--text-muted);
+          font-size: 0.9rem;
+      }
+
+      .gestao-historico-resumo {
+          color: var(--text-muted);
+          font-size: 0.95rem;
+      }
+
+      .gestao-historico-tabela table td:last-child ul {
+          margin: 6px 0 0;
+          padding-left: 18px;
+      }
+
+      .gestao-historico-tabela table li {
+          margin-bottom: 4px;
+          color: var(--text-secondary);
+      }
+
+      .gestao-historico-tabela table li strong {
+          color: var(--text-primary);
+      }
+
+      .gestao-confirm-extra {
+          margin-top: 10px;
+          display: flex;
+          flex-direction: column;
+          gap: 12px;
+      }
+
+      .gestao-confirm-extra label {
+          font-weight: 600;
+      }
+
+      .gestao-confirm-warning {
+          margin-top: 12px;
+          background: var(--warning-soft);
+          border-radius: var(--radius-sm);
+          padding: 10px 12px;
+          color: var(--warning-strong);
+          display: none;
+      }
+
+      .gestao-confirm-warning.is-visible {
+          display: block;
+      }
+
+      @media (max-width: 960px) {
+          .gestao-cadastros-tabs {
+              flex-direction: column;
+          }
+
+          .gestao-card .form-grid {
+              flex-direction: column;
+              align-items: stretch;
+          }
+
+          .gestao-cadastros-header {
+              flex-direction: column;
+              align-items: stretch;
+          }
+      }
+
+      @media (max-width: 680px) {
+          .gestao-cadastros-stats {
+              grid-template-columns: 1fr;
+          }
+
+          .gestao-historico-tabela table {
+              font-size: 0.9rem;
+          }
+      }
 </style>
