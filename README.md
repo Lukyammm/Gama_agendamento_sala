@@ -24,6 +24,38 @@ No Google Apps Script, o HtmlService não referencia arquivos `.css` externos au
 - `DOCUMENTACAO.md`: referência técnica suplementar com detalhes de fluxos específicos.
 - `HISTORICO.md`: registro de evoluções do projeto e correções aplicadas.
 
+## Painel de cadastros e auditoria
+### Como acessar
+1. Publique o Web App e abra a interface autenticado com um usuário autorizado.
+2. No menu lateral “Gestão” selecione **Painel de Cadastros**. O cabeçalho exibe a data/hora da última sincronização e um botão para forçar a recarga dos dados.
+
+### Fluxo de cadastros
+1. Utilize as abas superiores para alternar entre **Especialidades & Categorias**, **Ilhas**, **Salas** e **Histórico**.
+2. Em cada formulário digite o nome desejado e pressione **Salvar**. Ao editar um registro existente o botão muda automaticamente para **Atualizar** e o formulário é preenchido com os dados atuais.
+3. Ações de exclusão abrem um modal de confirmação destacando os impactos (ex.: ilhas com salas vinculadas exibem a lista de salas e permitem a reassociação imediata).
+4. O painel de salas traz seleção individual ou em lote: marque as caixas desejadas, escolha a ilha alvo e confirme em **Aplicar em lote** para mover várias salas de uma só vez.
+5. Mensagens de feedback em destaque informam o resultado de cada operação e o painel de estatísticas é atualizado em tempo real (totais de cadastros, ilhas sem salas e salas sem ilha).
+
+### Auditoria e interpretação do histórico
+1. A aba **Histórico** consulta a aba `LOGS` com o detalhe campo a campo de cada alteração (antes/depois, usuário, ação e timestamp).
+2. Use o formulário de filtros para restringir por entidade, tipo de ação, usuário responsável ou período. O contador resume quantos eventos atendem aos critérios.
+3. Cada registro apresenta uma lista com as alterações aplicadas e, quando houver, observações adicionais enviadas pelo Apps Script.
+
+### Estatísticas e indicadores
+1. Os cards superiores exibem totais consolidados: especialidades ativas, categorias, ilhas, salas, ilhas sem salas e salas sem ilha.
+2. As informações são recalculadas após qualquer operação CRUD ou atualização manual, refletindo exatamente o estado persistido no Google Sheets.
+
+## Checklist de testes manuais
+- [ ] Acessar o Web App publicado e abrir o painel **Gestão > Painel de Cadastros**.
+- [ ] Criar, editar e excluir uma especialidade verificando o feedback de sucesso/erro.
+- [ ] Criar, editar e excluir uma categoria verificando o feedback de sucesso/erro.
+- [ ] Renomear e excluir uma ilha com reassociação opcional de salas.
+- [ ] Criar, editar e excluir uma sala associando-a a diferentes ilhas.
+- [ ] Aplicar a associação em lote de salas e confirmar a atualização das estatísticas.
+- [ ] Consultar o histórico filtrando por entidade e validar os detalhes das mudanças.
+- [ ] Confirmar que o painel de estatísticas reflete os cadastros após as alterações.
+- [ ] Validar o registro dos eventos na aba `LOGS` da planilha.
+
 ## Implantação e uso
 1. Abra o editor do Google Apps Script conectado à planilha de agendamentos.
 2. Importe ou atualize os arquivos (`Index.html`, `style.html`, `script.html` e `CODE.gs`) respeitando os nomes exatos.

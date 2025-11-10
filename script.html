@@ -343,6 +343,50 @@
                 comparativoInfo: null,
                 resumoAtual: null
             },
+            gestaoCadastros: {
+                carregando: false,
+                carregado: false,
+                erro: null,
+                tabAtiva: 'especialidades',
+                dados: {
+                    especialidades: [],
+                    categorias: [],
+                    ilhas: [],
+                    salas: [],
+                    estatisticas: {
+                        totalEspecialidades: 0,
+                        totalCategorias: 0,
+                        totalIlhas: 0,
+                        totalSalas: 0,
+                        ilhasSemSala: 0,
+                        salasSemIlha: 0
+                    },
+                    timestamp: null
+                },
+                selecao: {
+                    especialidadeId: null,
+                    categoriaId: null,
+                    ilhaId: null,
+                    salaId: null,
+                    salasSelecionadas: new Set()
+                },
+                historico: {
+                    carregando: false,
+                    registros: [],
+                    erro: null,
+                    filtros: {
+                        busca: '',
+                        entidade: '',
+                        acao: '',
+                        usuario: '',
+                        inicio: '',
+                        fim: ''
+                    }
+                },
+                feedback: null,
+                ultimaAtualizacao: null,
+                eventosRegistrados: false
+            },
             logs: {
                 registros: [],
                 filtros: {
@@ -377,6 +421,8 @@
 
         const estado = {};
         let contextoRegistroRapido = null;
+        let gestaoConfirmacaoCallback = null;
+        let gestaoConfirmacaoContexto = null;
         const drawerController = {
             register: () => () => {},
             unregister: () => {},
@@ -422,7 +468,16 @@
             relatorioComparativoConfig: ['relatorios', 'comparativoConfig'],
             relatorioComparativoDados: ['relatorios', 'comparativoDados'],
             relatorioComparativoInfo: ['relatorios', 'comparativoInfo'],
-            relatorioResumoAtual: ['relatorios', 'resumoAtual']
+            relatorioResumoAtual: ['relatorios', 'resumoAtual'],
+            gestaoCadastrosDados: ['gestaoCadastros', 'dados'],
+            gestaoCadastrosCarregando: ['gestaoCadastros', 'carregando'],
+            gestaoCadastrosTabAtiva: ['gestaoCadastros', 'tabAtiva'],
+            gestaoCadastrosFeedback: ['gestaoCadastros', 'feedback'],
+            gestaoCadastrosHistorico: ['gestaoCadastros', 'historico'],
+            gestaoCadastrosSelecao: ['gestaoCadastros', 'selecao'],
+            gestaoCadastrosUltimaAtualizacao: ['gestaoCadastros', 'ultimaAtualizacao'],
+            gestaoCadastrosErro: ['gestaoCadastros', 'erro'],
+            gestaoCadastrosCarregado: ['gestaoCadastros', 'carregado']
         };
 
         Object.keys(estadoMapeamento).forEach(chave => {
@@ -461,7 +516,8 @@
             login: {},
             main: {},
             usuario: {},
-            forgot: {}
+            forgot: {},
+            gestaoCadastros: {}
         };
 
         const normalizer = {
@@ -520,6 +576,33 @@
 
         function normalizarStatus(valor) {
             return normalizer.status(valor);
+        }
+
+        function normalizarChaveCadastroLocal(valor) {
+            if (valor === null || valor === undefined) {
+                return '';
+            }
+            return removerAcentos(String(valor))
+                .toLowerCase()
+                .replace(/\s+/g, ' ')
+                .trim();
+        }
+
+        const formatadorDataHora = new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short', timeStyle: 'short' });
+        const formatadorData = new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short' });
+
+        function formatarDataHoraLocal(isoString) {
+            if (!isoString) return '--';
+            const data = new Date(isoString);
+            if (Number.isNaN(data.getTime())) return '--';
+            return formatadorDataHora.format(data);
+        }
+
+        function formatarDataLocal(isoString) {
+            if (!isoString) return '--';
+            const data = new Date(isoString);
+            if (Number.isNaN(data.getTime())) return '--';
+            return formatadorData.format(data);
         }
 
         function obterDomLogin() {
@@ -3137,6 +3220,7 @@
                     if (tab === 'planejamento') atualizarPlanejamento();
                     if (tab === 'medicos') renderAcompanhamentoMedicos();
                     if (tab === 'logs') inicializarLogsGestao();
+                    if (tab === 'gestao-cadastros') inicializarGestaoCadastros();
                     if (mobileNavMediaQuery.matches) {
                         closeMobileNav({ shouldFocus: true });
                     }
@@ -7712,6 +7796,1786 @@
                     logsState.carregado = false;
                 },
                 mensagemErroPadrao: 'Erro ao carregar logs.'
+            });
+        }
+
+        // ===== Gestão de Cadastros =====
+        function obterDomGestaoCadastros() {
+            const cache = domCache.gestaoCadastros;
+            if (cache.inicializado) return cache;
+            cache.container = document.getElementById('gestao-cadastros');
+            cache.stats = document.getElementById('gestao-cadastros-stats');
+            cache.feedback = document.getElementById('gestao-cadastros-feedback');
+            cache.atualizado = document.getElementById('gestao-cadastros-atualizado');
+            cache.refresh = document.getElementById('gestao-cadastros-refresh');
+            cache.tabs = document.getElementById('gestao-cadastros-tabs');
+            cache.tabButtons = cache.tabs ? Array.from(cache.tabs.querySelectorAll('.gestao-cadastros-tab')) : [];
+            cache.panels = Array.from(document.querySelectorAll('.gestao-cadastros-panel'));
+
+            cache.especialidadeForm = document.getElementById('gestao-especialidade-form');
+            cache.especialidadeNome = document.getElementById('gestao-especialidade-nome');
+            cache.especialidadeAjuda = document.getElementById('gestao-especialidade-ajuda');
+            cache.especialidadeCancelar = document.getElementById('gestao-especialidade-cancelar');
+            cache.especialidadeSalvar = document.getElementById('gestao-especialidade-salvar');
+            cache.especialidadeLista = document.getElementById('gestao-especialidade-lista');
+
+            cache.categoriaForm = document.getElementById('gestao-categoria-form');
+            cache.categoriaNome = document.getElementById('gestao-categoria-nome');
+            cache.categoriaAjuda = document.getElementById('gestao-categoria-ajuda');
+            cache.categoriaCancelar = document.getElementById('gestao-categoria-cancelar');
+            cache.categoriaSalvar = document.getElementById('gestao-categoria-salvar');
+            cache.categoriaLista = document.getElementById('gestao-categoria-lista');
+
+            cache.ilhaForm = document.getElementById('gestao-ilha-form');
+            cache.ilhaNome = document.getElementById('gestao-ilha-nome');
+            cache.ilhaAjuda = document.getElementById('gestao-ilha-ajuda');
+            cache.ilhaCancelar = document.getElementById('gestao-ilha-cancelar');
+            cache.ilhaSalvar = document.getElementById('gestao-ilha-salvar');
+            cache.ilhaLista = document.getElementById('gestao-ilha-lista');
+            cache.ilhaResumo = document.getElementById('gestao-ilha-resumo');
+
+            cache.salaForm = document.getElementById('gestao-sala-form');
+            cache.salaNumero = document.getElementById('gestao-sala-numero');
+            cache.salaAjuda = document.getElementById('gestao-sala-ajuda');
+            cache.salaIlha = document.getElementById('gestao-sala-ilha');
+            cache.salaCancelar = document.getElementById('gestao-sala-cancelar');
+            cache.salaSalvar = document.getElementById('gestao-sala-salvar');
+            cache.salaLista = document.getElementById('gestao-sala-lista');
+            cache.salaSelectTodos = document.getElementById('gestao-sala-select-todos');
+
+            cache.salaLoteForm = document.getElementById('gestao-sala-lote-form');
+            cache.salaLoteIlha = document.getElementById('gestao-sala-lote-ilha');
+            cache.salaLoteAplicar = document.getElementById('gestao-sala-lote-aplicar');
+            cache.salaLoteLimpar = document.getElementById('gestao-sala-lote-limpar');
+            cache.salaLoteStatus = document.getElementById('gestao-sala-lote-status');
+
+            cache.historicoForm = document.getElementById('gestao-historico-form');
+            cache.historicoBusca = document.getElementById('gestao-historico-busca');
+            cache.historicoEntidade = document.getElementById('gestao-historico-entidade');
+            cache.historicoAcao = document.getElementById('gestao-historico-acao');
+            cache.historicoUsuario = document.getElementById('gestao-historico-usuario');
+            cache.historicoInicio = document.getElementById('gestao-historico-inicio');
+            cache.historicoFim = document.getElementById('gestao-historico-fim');
+            cache.historicoReset = document.getElementById('gestao-historico-reset');
+            cache.historicoRecarregar = document.getElementById('gestao-historico-recarregar');
+            cache.historicoTabela = document.getElementById('gestao-historico-tabela');
+            cache.historicoResumo = document.getElementById('gestao-historico-resumo');
+
+            cache.confirmModal = document.getElementById('gestao-confirm-modal');
+            cache.confirmTitle = document.getElementById('gestao-confirm-title');
+            cache.confirmMessage = document.getElementById('gestao-confirm-message');
+            cache.confirmDetails = document.getElementById('gestao-confirm-details');
+            cache.confirmWarning = document.getElementById('gestao-confirm-warning');
+            cache.confirmAccept = document.getElementById('gestao-confirm-accept');
+            cache.confirmDefaultTitleHtml = cache.confirmTitle ? cache.confirmTitle.innerHTML : '';
+            cache.confirmDefaultTitle = cache.confirmTitle ? cache.confirmTitle.textContent.trim() : '';
+            cache.confirmDefaultAcceptHtml = cache.confirmAccept ? cache.confirmAccept.innerHTML : '';
+            cache.confirmDefaultLabel = cache.confirmAccept ? cache.confirmAccept.textContent.trim() : '';
+            cache.confirmOnConfirm = null;
+            cache.confirmOnCancel = null;
+
+            cache.inicializado = true;
+            return cache;
+        }
+
+        function limparFeedbackGestaoCadastros() {
+            const dom = obterDomGestaoCadastros();
+            if (!dom.feedback) return;
+            dom.feedback.classList.remove('is-visible', 'success', 'error');
+            dom.feedback.textContent = '';
+        }
+
+        function mostrarFeedbackGestaoCadastros(tipo, mensagem) {
+            const dom = obterDomGestaoCadastros();
+            if (!dom.feedback || !mensagem) return;
+            dom.feedback.textContent = mensagem;
+            dom.feedback.classList.remove('success', 'error');
+            dom.feedback.classList.add('is-visible');
+            dom.feedback.classList.add(tipo === 'error' ? 'error' : 'success');
+        }
+
+        function definirEstadoBotaoAcao(botao, processando, textoProcessando) {
+            if (!botao) return;
+            const span = botao.querySelector('span');
+            if (processando) {
+                if (!botao.dataset.labelOriginal) {
+                    botao.dataset.labelOriginal = span ? span.textContent : botao.textContent;
+                }
+                if (textoProcessando) {
+                    if (span) {
+                        span.textContent = textoProcessando;
+                    } else {
+                        botao.textContent = textoProcessando;
+                    }
+                }
+                botao.disabled = true;
+                botao.setAttribute('aria-busy', 'true');
+            } else {
+                botao.disabled = false;
+                botao.removeAttribute('aria-busy');
+                const original = botao.dataset.labelOriginal;
+                if (original) {
+                    if (span) {
+                        span.textContent = original;
+                    } else {
+                        botao.textContent = original;
+                    }
+                    delete botao.dataset.labelOriginal;
+                }
+            }
+        }
+
+        function encontrarIlhaPorId(id) {
+            if (!Number.isInteger(Number(id))) return null;
+            const dados = stores.gestaoCadastros.dados || {};
+            const ilhas = Array.isArray(dados.ilhas) ? dados.ilhas : [];
+            return ilhas.find(item => Number(item.id) === Number(id)) || null;
+        }
+
+        function encontrarIlhaPorNome(nome) {
+            if (!nome) return null;
+            const chaveBusca = normalizarChaveCadastroLocal(nome);
+            if (!chaveBusca) return null;
+            const dados = stores.gestaoCadastros.dados || {};
+            const ilhas = Array.isArray(dados.ilhas) ? dados.ilhas : [];
+            return ilhas.find(item => normalizarChaveCadastroLocal(item.nome) === chaveBusca) || null;
+        }
+
+        function obterSelecaoSalasSet() {
+            const selecao = stores.gestaoCadastros.selecao || {};
+            if (!(selecao.salasSelecionadas instanceof Set)) {
+                selecao.salasSelecionadas = new Set(Array.isArray(selecao.salasSelecionadas) ? selecao.salasSelecionadas : []);
+            }
+            stores.gestaoCadastros.selecao = selecao;
+            return selecao.salasSelecionadas;
+        }
+
+        function atualizarResumoSelecaoSalas() {
+            const dom = obterDomGestaoCadastros();
+            const selecionadas = obterSelecaoSalasSet();
+            if (dom.salaLoteStatus) {
+                const total = selecionadas.size;
+                dom.salaLoteStatus.textContent = total
+                    ? `${total} sala${total > 1 ? 's' : ''} selecionada${total > 1 ? 's' : ''}.`
+                    : 'Nenhuma sala selecionada.';
+            }
+            if (dom.salaSelectTodos && dom.salaLista) {
+                const checkboxes = Array.from(dom.salaLista.querySelectorAll('.gestao-sala-checkbox'));
+                if (!checkboxes.length) {
+                    dom.salaSelectTodos.checked = false;
+                    dom.salaSelectTodos.indeterminate = false;
+                    return;
+                }
+                const todosMarcados = checkboxes.every(cb => cb.checked);
+                dom.salaSelectTodos.checked = todosMarcados;
+                dom.salaSelectTodos.indeterminate = !todosMarcados && selecionadas.size > 0;
+            }
+        }
+
+        function limparSelecaoSalas() {
+            const dom = obterDomGestaoCadastros();
+            const selecao = obterSelecaoSalasSet();
+            selecao.clear();
+            if (dom.salaLista) {
+                dom.salaLista.querySelectorAll('.gestao-sala-checkbox').forEach(cb => {
+                    cb.checked = false;
+                });
+            }
+            if (dom.salaSelectTodos) {
+                dom.salaSelectTodos.checked = false;
+                dom.salaSelectTodos.indeterminate = false;
+            }
+            atualizarResumoSelecaoSalas();
+        }
+
+        function limparSelecaoSalasInexistentes() {
+            const selecao = obterSelecaoSalasSet();
+            if (!selecao.size) return;
+            const dados = stores.gestaoCadastros.dados || {};
+            const salas = Array.isArray(dados.salas) ? dados.salas : [];
+            const idsValidos = new Set(salas.map(item => Number(item.id)));
+            Array.from(selecao).forEach(valor => {
+                const id = Number(valor);
+                if (!idsValidos.has(id)) {
+                    selecao.delete(valor);
+                    selecao.delete(id);
+                }
+            });
+        }
+
+        function atualizarSeletoresGestaoIlha(ilhas) {
+            const dom = obterDomGestaoCadastros();
+            const lista = Array.isArray(ilhas) ? ilhas : [];
+            const opcoes = ['<option value="">Sem ilha</option>'];
+            lista.forEach(item => opcoes.push(`<option value="${item.id}">${escapeHtml(item.nome || '')}</option>`));
+            if (dom.salaIlha) {
+                const valorAtual = dom.salaIlha.value;
+                dom.salaIlha.innerHTML = opcoes.join('');
+                if (valorAtual) dom.salaIlha.value = valorAtual;
+            }
+            if (dom.salaLoteIlha) {
+                const valorAtual = dom.salaLoteIlha.value;
+                dom.salaLoteIlha.innerHTML = opcoes.join('');
+                if (valorAtual) dom.salaLoteIlha.value = valorAtual;
+            }
+        }
+
+        function renderGestaoCadastrosStats(est) {
+            const dom = obterDomGestaoCadastros();
+            if (!dom.stats) return;
+            const estatisticas = est || {};
+            const itens = [
+                { chave: 'totalEspecialidades', rotulo: 'Especialidades ativas', icone: 'fa-stethoscope' },
+                { chave: 'totalCategorias', rotulo: 'Categorias cadastradas', icone: 'fa-user-tag' },
+                { chave: 'totalIlhas', rotulo: 'Ilhas disponíveis', icone: 'fa-island-tropical' },
+                { chave: 'totalSalas', rotulo: 'Salas cadastradas', icone: 'fa-door-open' },
+                { chave: 'salasSemIlha', rotulo: 'Salas sem ilha', icone: 'fa-location-pin-slash' },
+                { chave: 'ilhasSemSala', rotulo: 'Ilhas sem salas', icone: 'fa-circle-exclamation' }
+            ];
+            dom.stats.innerHTML = itens.map(item => {
+                const valor = estatisticas[item.chave] !== undefined ? estatisticas[item.chave] : '--';
+                return `
+                    <article class="gestao-stat-card" tabindex="0">
+                        <div class="gestao-stat-icon"><i class="fas ${item.icone}"></i></div>
+                        <div>
+                            <strong>${valor}</strong>
+                            <span>${item.rotulo}</span>
+                        </div>
+                    </article>
+                `;
+            }).join('');
+        }
+
+        function renderGestaoEspecialidades(lista) {
+            const dom = obterDomGestaoCadastros();
+            if (!dom.especialidadeLista) return;
+            const registros = Array.isArray(lista) && lista.length ? lista : [];
+            if (!registros.length) {
+                dom.especialidadeLista.innerHTML = '<tr><td colspan="2">Nenhuma especialidade cadastrada.</td></tr>';
+                return;
+            }
+            dom.especialidadeLista.innerHTML = registros.map(item => `
+                <tr data-id="${item.id}">
+                    <td>${escapeHtml(item.nome || '')}</td>
+                    <td class="col-acoes">
+                        <button type="button" class="acao-btn" data-action="edit" data-id="${item.id}" data-nome="${escapeHtml(item.nome || '')}">
+                            <i class="fas fa-pen"></i> Editar
+                        </button>
+                        <button type="button" class="acao-btn" data-action="delete" data-id="${item.id}" data-nome="${escapeHtml(item.nome || '')}">
+                            <i class="fas fa-trash"></i> Excluir
+                        </button>
+                    </td>
+                </tr>
+            `).join('');
+        }
+
+        function renderGestaoCategorias(lista) {
+            const dom = obterDomGestaoCadastros();
+            if (!dom.categoriaLista) return;
+            const registros = Array.isArray(lista) && lista.length ? lista : [];
+            if (!registros.length) {
+                dom.categoriaLista.innerHTML = '<tr><td colspan="2">Nenhuma categoria cadastrada.</td></tr>';
+                return;
+            }
+            dom.categoriaLista.innerHTML = registros.map(item => `
+                <tr data-id="${item.id}">
+                    <td>${escapeHtml(item.nome || '')}</td>
+                    <td class="col-acoes">
+                        <button type="button" class="acao-btn" data-action="edit" data-id="${item.id}" data-nome="${escapeHtml(item.nome || '')}">
+                            <i class="fas fa-pen"></i> Editar
+                        </button>
+                        <button type="button" class="acao-btn" data-action="delete" data-id="${item.id}" data-nome="${escapeHtml(item.nome || '')}">
+                            <i class="fas fa-trash"></i> Excluir
+                        </button>
+                    </td>
+                </tr>
+            `).join('');
+        }
+
+        function renderGestaoIlhas(lista) {
+            const dom = obterDomGestaoCadastros();
+            if (!dom.ilhaLista) return;
+            const registros = Array.isArray(lista) && lista.length ? lista : [];
+            if (!registros.length) {
+                dom.ilhaLista.innerHTML = '<tr><td colspan="3">Nenhuma ilha cadastrada.</td></tr>';
+                if (dom.ilhaResumo) dom.ilhaResumo.textContent = '';
+                return;
+            }
+            if (dom.ilhaResumo) {
+                const semSala = registros.filter(item => (item.totalSalas || 0) === 0).length;
+                dom.ilhaResumo.textContent = `${registros.length} ilha${registros.length > 1 ? 's' : ''} cadastrada${registros.length > 1 ? 's' : ''}. ${semSala} sem salas vinculadas.`;
+            }
+            dom.ilhaLista.innerHTML = registros.map(item => {
+                const salas = Array.isArray(item.salas) ? item.salas : [];
+                const resumoSalas = salas.length ? `${salas.slice(0, 5).join(', ')}${salas.length > 5 ? '…' : ''}` : 'Nenhuma';
+                const alertaDuplicada = item.duplicada ? '<span class="badge badge-warning">Duplicada</span>' : '';
+                return `
+                    <tr data-id="${item.id}">
+                        <td><strong>${escapeHtml(item.nome || '')}</strong> ${alertaDuplicada}</td>
+                        <td>
+                            <span>${item.totalSalas || 0} sala${item.totalSalas === 1 ? '' : 's'}</span>
+                            <div class="texto-secundario">${escapeHtml(resumoSalas)}</div>
+                        </td>
+                        <td class="col-acoes">
+                            <button type="button" class="acao-btn" data-action="edit" data-id="${item.id}" data-nome="${escapeHtml(item.nome || '')}">
+                                <i class="fas fa-pen"></i> Renomear
+                            </button>
+                            <button type="button" class="acao-btn" data-action="delete" data-id="${item.id}" data-nome="${escapeHtml(item.nome || '')}" data-total-salas="${item.totalSalas || 0}" data-salas="${salas.map(escapeHtml).join('|')}">
+                                <i class="fas fa-trash"></i> Excluir
+                            </button>
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+        }
+
+        function renderGestaoSalas(lista) {
+            const dom = obterDomGestaoCadastros();
+            if (!dom.salaLista) return;
+            const registros = Array.isArray(lista) && lista.length ? lista : [];
+            const selecao = obterSelecaoSalasSet();
+            const dados = stores.gestaoCadastros.dados || {};
+            const ilhas = Array.isArray(dados.ilhas) ? dados.ilhas : [];
+            const mapaIlhasPorNome = new Map();
+            ilhas.forEach(ilha => {
+                if (!ilha || !ilha.nome) return;
+                mapaIlhasPorNome.set(normalizarChaveCadastroLocal(ilha.nome), ilha);
+            });
+            if (!registros.length) {
+                dom.salaLista.innerHTML = '<tr><td colspan="4">Nenhuma sala cadastrada.</td></tr>';
+                selecao.clear();
+                atualizarResumoSelecaoSalas();
+                return;
+            }
+            dom.salaLista.innerHTML = registros.map(item => {
+                const id = item.id;
+                const marcado = selecao.has(id) || selecao.has(String(id));
+                const ilhaTexto = item.ilha ? escapeHtml(item.ilha) : '<span class="texto-secundario">Sem ilha</span>';
+                const chaveIlha = normalizarChaveCadastroLocal(item.ilha || '');
+                const ilhaInfo = chaveIlha ? mapaIlhasPorNome.get(chaveIlha) : null;
+                const ilhaId = ilhaInfo ? ilhaInfo.id : '';
+                return `
+                    <tr data-id="${id}">
+                        <td class="col-check"><input type="checkbox" class="gestao-sala-checkbox" data-id="${id}" ${marcado ? 'checked' : ''}></td>
+                        <td>${escapeHtml(item.numero || '')}</td>
+                        <td>${ilhaTexto}</td>
+                        <td class="col-acoes">
+                            <button type="button" class="acao-btn" data-action="edit" data-id="${id}" data-numero="${escapeHtml(item.numero || '')}" data-ilha-id="${ilhaId}" data-ilha-nome="${escapeHtml(item.ilha || '')}">
+                                <i class="fas fa-pen"></i> Editar
+                            </button>
+                            <button type="button" class="acao-btn" data-action="delete" data-id="${id}" data-numero="${escapeHtml(item.numero || '')}">
+                                <i class="fas fa-trash"></i> Excluir
+                            </button>
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+            atualizarResumoSelecaoSalas();
+        }
+
+        function renderGestaoHistorico() {
+            const dom = obterDomGestaoCadastros();
+            if (!dom.historicoTabela) return;
+            const historico = stores.gestaoCadastros.historico;
+            if (historico.carregando) {
+                dom.historicoTabela.innerHTML = '<tr><td colspan="5">Carregando histórico...</td></tr>';
+                return;
+            }
+            if (historico.erro) {
+                dom.historicoTabela.innerHTML = `<tr><td colspan="5">${escapeHtml(historico.erro)}</td></tr>`;
+                return;
+            }
+            const registros = Array.isArray(historico.registros) ? historico.registros : [];
+            if (!registros.length) {
+                dom.historicoTabela.innerHTML = '<tr><td colspan="5">Nenhum registro encontrado para os filtros selecionados.</td></tr>';
+            } else {
+                dom.historicoTabela.innerHTML = registros.map(item => {
+                    const campos = Array.isArray(item.campos) ? item.campos.map(campo => `<li><strong>${escapeHtml(campo.campo || '')}:</strong> ${escapeHtml(String(campo.antes ?? ''))} → ${escapeHtml(String(campo.depois ?? ''))}</li>`).join('') : '<li>Sem detalhes adicionais.</li>';
+                    return `
+                        <tr>
+                            <td>${formatarDataHoraLocal(item.timestamp)}</td>
+                            <td>${escapeHtml(item.usuario || '--')}</td>
+                            <td>${escapeHtml(item.entidade || '--')} - ${escapeHtml(item.operacao || '--')}</td>
+                            <td>${escapeHtml(item.detalhes || item.acao || '--')}</td>
+                            <td><ul>${campos}</ul></td>
+                        </tr>
+                    `;
+                }).join('');
+            }
+            if (dom.historicoResumo) {
+                const filtros = historico.filtros || {};
+                const periodo = filtros.inicio || filtros.fim
+                    ? `Período: ${filtros.inicio ? formatarDataLocal(filtros.inicio) : '--'} até ${filtros.fim ? formatarDataLocal(filtros.fim) : '--'}`
+                    : 'Sem filtro de período';
+                dom.historicoResumo.textContent = `${registros.length} registro${registros.length === 1 ? '' : 's'} exibido${registros.length === 1 ? '' : 's'}. ${periodo}.`;
+            }
+        }
+
+        function resetarFormularioGestao(tipo) {
+            const dom = obterDomGestaoCadastros();
+            switch (tipo) {
+                case 'especialidade':
+                    if (dom.especialidadeForm) delete dom.especialidadeForm.dataset.id;
+                    if (dom.especialidadeNome) {
+                        dom.especialidadeNome.value = '';
+                        dom.especialidadeNome.classList.remove('is-invalid');
+                        dom.especialidadeNome.removeAttribute('aria-invalid');
+                    }
+                    if (dom.especialidadeAjuda) dom.especialidadeAjuda.textContent = '';
+                    if (dom.especialidadeSalvar) {
+                        const span = dom.especialidadeSalvar.querySelector('span');
+                        if (span) span.textContent = 'Salvar';
+                    }
+                    stores.gestaoCadastros.selecao.especialidadeId = null;
+                    break;
+                case 'categoria':
+                    if (dom.categoriaForm) delete dom.categoriaForm.dataset.id;
+                    if (dom.categoriaNome) {
+                        dom.categoriaNome.value = '';
+                        dom.categoriaNome.classList.remove('is-invalid');
+                        dom.categoriaNome.removeAttribute('aria-invalid');
+                    }
+                    if (dom.categoriaAjuda) dom.categoriaAjuda.textContent = '';
+                    if (dom.categoriaSalvar) {
+                        const span = dom.categoriaSalvar.querySelector('span');
+                        if (span) span.textContent = 'Salvar';
+                    }
+                    stores.gestaoCadastros.selecao.categoriaId = null;
+                    break;
+                case 'ilha':
+                    if (dom.ilhaForm) delete dom.ilhaForm.dataset.id;
+                    if (dom.ilhaNome) {
+                        dom.ilhaNome.value = '';
+                        dom.ilhaNome.classList.remove('is-invalid');
+                        dom.ilhaNome.removeAttribute('aria-invalid');
+                    }
+                    if (dom.ilhaAjuda) dom.ilhaAjuda.textContent = '';
+                    if (dom.ilhaSalvar) {
+                        const span = dom.ilhaSalvar.querySelector('span');
+                        if (span) span.textContent = 'Salvar';
+                    }
+                    stores.gestaoCadastros.selecao.ilhaId = null;
+                    break;
+                case 'sala':
+                    if (dom.salaForm) delete dom.salaForm.dataset.id;
+                    if (dom.salaNumero) {
+                        dom.salaNumero.value = '';
+                        dom.salaNumero.classList.remove('is-invalid');
+                        dom.salaNumero.removeAttribute('aria-invalid');
+                    }
+                    if (dom.salaAjuda) dom.salaAjuda.textContent = '';
+                    if (dom.salaIlha) dom.salaIlha.value = '';
+                    if (dom.salaSalvar) {
+                        const span = dom.salaSalvar.querySelector('span');
+                        if (span) span.textContent = 'Salvar';
+                    }
+                    stores.gestaoCadastros.selecao.salaId = null;
+                    break;
+                default:
+                    break;
+            }
+        }
+
+        function preencherFormularioGestao(tipo, dados) {
+            const dom = obterDomGestaoCadastros();
+            switch (tipo) {
+                case 'especialidade':
+                    if (!dom.especialidadeForm || !dom.especialidadeNome) return;
+                    dom.especialidadeForm.dataset.id = dados.id;
+                    dom.especialidadeNome.value = dados.nome || '';
+                    dom.especialidadeNome.focus();
+                    dom.especialidadeNome.classList.remove('is-invalid');
+                    dom.especialidadeNome.removeAttribute('aria-invalid');
+                    if (dom.especialidadeAjuda) dom.especialidadeAjuda.textContent = '';
+                    if (dom.especialidadeSalvar) {
+                        const span = dom.especialidadeSalvar.querySelector('span');
+                        if (span) span.textContent = 'Atualizar';
+                    }
+                    stores.gestaoCadastros.selecao.especialidadeId = dados.id;
+                    break;
+                case 'categoria':
+                    if (!dom.categoriaForm || !dom.categoriaNome) return;
+                    dom.categoriaForm.dataset.id = dados.id;
+                    dom.categoriaNome.value = dados.nome || '';
+                    dom.categoriaNome.focus();
+                    dom.categoriaNome.classList.remove('is-invalid');
+                    dom.categoriaNome.removeAttribute('aria-invalid');
+                    if (dom.categoriaAjuda) dom.categoriaAjuda.textContent = '';
+                    if (dom.categoriaSalvar) {
+                        const span = dom.categoriaSalvar.querySelector('span');
+                        if (span) span.textContent = 'Atualizar';
+                    }
+                    stores.gestaoCadastros.selecao.categoriaId = dados.id;
+                    break;
+                case 'ilha':
+                    if (!dom.ilhaForm || !dom.ilhaNome) return;
+                    dom.ilhaForm.dataset.id = dados.id;
+                    dom.ilhaNome.value = dados.nome || '';
+                    dom.ilhaNome.focus();
+                    dom.ilhaNome.classList.remove('is-invalid');
+                    dom.ilhaNome.removeAttribute('aria-invalid');
+                    if (dom.ilhaAjuda) dom.ilhaAjuda.textContent = '';
+                    if (dom.ilhaSalvar) {
+                        const span = dom.ilhaSalvar.querySelector('span');
+                        if (span) span.textContent = 'Atualizar';
+                    }
+                    stores.gestaoCadastros.selecao.ilhaId = dados.id;
+                    break;
+                case 'sala':
+                    if (!dom.salaForm || !dom.salaNumero) return;
+                    dom.salaForm.dataset.id = dados.id;
+                    dom.salaNumero.value = dados.numero || '';
+                    dom.salaNumero.focus();
+                    dom.salaNumero.classList.remove('is-invalid');
+                    dom.salaNumero.removeAttribute('aria-invalid');
+                    if (dom.salaAjuda) dom.salaAjuda.textContent = '';
+                    if (dom.salaIlha) {
+                        let valorIlha = '';
+                        if (dados.ilhaId) {
+                            valorIlha = String(dados.ilhaId);
+                        } else if (dados.ilhaNome) {
+                            const info = encontrarIlhaPorNome(dados.ilhaNome);
+                            if (info) {
+                                valorIlha = String(info.id);
+                            }
+                        }
+                        dom.salaIlha.value = valorIlha;
+                    }
+                    if (dom.salaSalvar) {
+                        const span = dom.salaSalvar.querySelector('span');
+                        if (span) span.textContent = 'Atualizar';
+                    }
+                    stores.gestaoCadastros.selecao.salaId = dados.id;
+                    break;
+                default:
+                    break;
+            }
+        }
+
+        function atualizarPainelGestaoCadastros() {
+            const dom = obterDomGestaoCadastros();
+            if (!dom.container) return;
+            dom.container.classList.toggle('is-loading', !!stores.gestaoCadastros.carregando);
+            const dados = stores.gestaoCadastros.dados || {};
+            if (dom.atualizado) {
+                dom.atualizado.textContent = dados.timestamp ? `Atualizado em ${formatarDataHoraLocal(dados.timestamp)}` : '';
+            }
+            renderGestaoCadastrosStats(dados.estatisticas || {});
+            renderGestaoEspecialidades(dados.especialidades || []);
+            renderGestaoCategorias(dados.categorias || []);
+            renderGestaoIlhas(dados.ilhas || []);
+            renderGestaoSalas(dados.salas || []);
+            atualizarSeletoresGestaoIlha(dados.ilhas || []);
+            if (stores.gestaoCadastros.tabAtiva === 'historico') {
+                renderGestaoHistorico();
+            }
+        }
+
+        function definirTabGestaoCadastros(tab) {
+            const dom = obterDomGestaoCadastros();
+            if (!dom.container) return;
+            const alvo = tab || stores.gestaoCadastros.tabAtiva || 'especialidades';
+            stores.gestaoCadastros.tabAtiva = alvo;
+            dom.tabButtons.forEach(botao => {
+                const painel = botao.dataset.panel;
+                const ativo = painel === alvo;
+                botao.classList.toggle('active', ativo);
+                botao.setAttribute('aria-selected', ativo ? 'true' : 'false');
+                const painelElemento = document.getElementById(`gestao-cadastros-${painel}`);
+                if (painelElemento) {
+                    if (ativo) {
+                        painelElemento.removeAttribute('hidden');
+                        painelElemento.classList.add('active');
+                    } else {
+                        painelElemento.setAttribute('hidden', '');
+                        painelElemento.classList.remove('active');
+                    }
+                }
+            });
+            if (alvo === 'historico') {
+                carregarHistoricoGestaoCadastros();
+            }
+        }
+
+        function inicializarGestaoCadastros() {
+            const dom = obterDomGestaoCadastros();
+            if (!dom.container) return;
+            if (!stores.gestaoCadastros.eventosRegistrados) {
+                registrarEventosGestaoCadastros();
+                stores.gestaoCadastros.eventosRegistrados = true;
+            }
+            atualizarPainelGestaoCadastros();
+            definirTabGestaoCadastros(stores.gestaoCadastros.tabAtiva);
+            if (!stores.gestaoCadastros.carregado) {
+                carregarGestaoCadastros();
+            }
+        }
+
+        function registrarEventosGestaoCadastros() {
+            const dom = obterDomGestaoCadastros();
+            if (!dom.container) return;
+            if (dom.tabButtons.length) {
+                dom.tabButtons.forEach(botao => botao.addEventListener('click', () => definirTabGestaoCadastros(botao.dataset.panel)));
+            }
+            if (dom.refresh) {
+                dom.refresh.addEventListener('click', () => {
+                    limparFeedbackGestaoCadastros();
+                    carregarGestaoCadastros({ mostrarMensagem: true });
+                });
+            }
+            if (dom.especialidadeForm) {
+                dom.especialidadeForm.addEventListener('submit', evento => {
+                    evento.preventDefault();
+                    limparFeedbackGestaoCadastros();
+                    const nome = (dom.especialidadeNome?.value || '').trim();
+                    if (nome.length < 2) {
+                        if (dom.especialidadeNome) {
+                            dom.especialidadeNome.classList.add('is-invalid');
+                            dom.especialidadeNome.setAttribute('aria-invalid', 'true');
+                        }
+                        if (dom.especialidadeAjuda) dom.especialidadeAjuda.textContent = 'Informe ao menos 2 caracteres.';
+                        return;
+                    }
+                    if (dom.especialidadeNome) {
+                        dom.especialidadeNome.classList.remove('is-invalid');
+                        dom.especialidadeNome.removeAttribute('aria-invalid');
+                    }
+                    if (dom.especialidadeAjuda) dom.especialidadeAjuda.textContent = '';
+                    const id = dom.especialidadeForm.dataset.id ? Number(dom.especialidadeForm.dataset.id) : null;
+                    salvarGestaoEspecialidade({ id, nome });
+                });
+            }
+            if (dom.especialidadeCancelar) {
+                dom.especialidadeCancelar.addEventListener('click', () => resetarFormularioGestao('especialidade'));
+            }
+            if (dom.especialidadeLista) {
+                dom.especialidadeLista.addEventListener('click', evento => {
+                    const botao = evento.target.closest('button[data-action]');
+                    if (!botao) return;
+                    const id = Number(botao.dataset.id);
+                    const nome = botao.dataset.nome || '';
+                    if (botao.dataset.action === 'edit') {
+                        preencherFormularioGestao('especialidade', { id, nome });
+                    } else if (botao.dataset.action === 'delete') {
+                        abrirConfirmacaoGestao({
+                            titulo: 'Remover especialidade',
+                            mensagem: `Confirma a exclusão da especialidade “${nome}”?`,
+                            onConfirm: () => excluirGestaoEspecialidade(id, nome)
+                        });
+                    }
+                });
+            }
+            if (dom.categoriaForm) {
+                dom.categoriaForm.addEventListener('submit', evento => {
+                    evento.preventDefault();
+                    limparFeedbackGestaoCadastros();
+                    const nome = (dom.categoriaNome?.value || '').trim();
+                    if (nome.length < 2) {
+                        if (dom.categoriaNome) {
+                            dom.categoriaNome.classList.add('is-invalid');
+                            dom.categoriaNome.setAttribute('aria-invalid', 'true');
+                        }
+                        if (dom.categoriaAjuda) dom.categoriaAjuda.textContent = 'Informe ao menos 2 caracteres.';
+                        return;
+                    }
+                    if (dom.categoriaNome) {
+                        dom.categoriaNome.classList.remove('is-invalid');
+                        dom.categoriaNome.removeAttribute('aria-invalid');
+                    }
+                    if (dom.categoriaAjuda) dom.categoriaAjuda.textContent = '';
+                    const id = dom.categoriaForm.dataset.id ? Number(dom.categoriaForm.dataset.id) : null;
+                    salvarGestaoCategoria({ id, nome });
+                });
+            }
+            if (dom.categoriaCancelar) {
+                dom.categoriaCancelar.addEventListener('click', () => resetarFormularioGestao('categoria'));
+            }
+            if (dom.categoriaLista) {
+                dom.categoriaLista.addEventListener('click', evento => {
+                    const botao = evento.target.closest('button[data-action]');
+                    if (!botao) return;
+                    const id = Number(botao.dataset.id);
+                    const nome = botao.dataset.nome || '';
+                    if (botao.dataset.action === 'edit') {
+                        preencherFormularioGestao('categoria', { id, nome });
+                    } else if (botao.dataset.action === 'delete') {
+                        abrirConfirmacaoGestao({
+                            titulo: 'Remover categoria',
+                            mensagem: `Confirma a exclusão da categoria “${nome}”?`,
+                            onConfirm: () => excluirGestaoCategoria(id, nome)
+                        });
+                    }
+                });
+            }
+            if (dom.ilhaForm) {
+                dom.ilhaForm.addEventListener('submit', evento => {
+                    evento.preventDefault();
+                    limparFeedbackGestaoCadastros();
+                    const nome = (dom.ilhaNome?.value || '').trim();
+                    if (nome.length < 2) {
+                        if (dom.ilhaNome) {
+                            dom.ilhaNome.classList.add('is-invalid');
+                            dom.ilhaNome.setAttribute('aria-invalid', 'true');
+                        }
+                        if (dom.ilhaAjuda) dom.ilhaAjuda.textContent = 'Informe ao menos 2 caracteres.';
+                        return;
+                    }
+                    if (dom.ilhaNome) {
+                        dom.ilhaNome.classList.remove('is-invalid');
+                        dom.ilhaNome.removeAttribute('aria-invalid');
+                    }
+                    if (dom.ilhaAjuda) dom.ilhaAjuda.textContent = '';
+                    const id = dom.ilhaForm.dataset.id ? Number(dom.ilhaForm.dataset.id) : null;
+                    salvarGestaoIlha({ id, nome });
+                });
+            }
+            if (dom.ilhaCancelar) {
+                dom.ilhaCancelar.addEventListener('click', () => resetarFormularioGestao('ilha'));
+            }
+            if (dom.ilhaLista) {
+                dom.ilhaLista.addEventListener('click', evento => {
+                    const botao = evento.target.closest('button[data-action]');
+                    if (!botao) return;
+                    const id = Number(botao.dataset.id);
+                    const nome = botao.dataset.nome || '';
+                    if (botao.dataset.action === 'edit') {
+                        preencherFormularioGestao('ilha', { id, nome });
+                    } else if (botao.dataset.action === 'delete') {
+                        const totalSalas = Number(botao.dataset.totalSalas || '0');
+                        const salas = botao.dataset.salas ? botao.dataset.salas.split('|').filter(Boolean) : [];
+                        confirmarExclusaoIlha({ id, nome, totalSalas, salas });
+                    }
+                });
+            }
+            if (dom.salaForm) {
+                dom.salaForm.addEventListener('submit', evento => {
+                    evento.preventDefault();
+                    limparFeedbackGestaoCadastros();
+                    const numero = (dom.salaNumero?.value || '').trim();
+                    if (!numero) {
+                        if (dom.salaNumero) {
+                            dom.salaNumero.classList.add('is-invalid');
+                            dom.salaNumero.setAttribute('aria-invalid', 'true');
+                        }
+                        if (dom.salaAjuda) dom.salaAjuda.textContent = 'Informe um identificador para a sala.';
+                        return;
+                    }
+                    if (dom.salaNumero) {
+                        dom.salaNumero.classList.remove('is-invalid');
+                        dom.salaNumero.removeAttribute('aria-invalid');
+                    }
+                    if (dom.salaAjuda) dom.salaAjuda.textContent = '';
+                    const id = dom.salaForm.dataset.id ? Number(dom.salaForm.dataset.id) : null;
+                    const ilhaValor = dom.salaIlha ? dom.salaIlha.value : '';
+                    const ilhaId = ilhaValor ? Number(ilhaValor) : null;
+                    let ilhaNome = '';
+                    if (ilhaId) {
+                        const info = encontrarIlhaPorId(ilhaId);
+                        ilhaNome = info ? info.nome : '';
+                    }
+                    if (!ilhaId && dom.salaIlha && dom.salaIlha.selectedOptions && dom.salaIlha.selectedOptions.length) {
+                        const option = dom.salaIlha.selectedOptions[0];
+                        const texto = option ? option.textContent.trim() : '';
+                        ilhaNome = option && option.value ? texto : '';
+                    }
+                    salvarGestaoSala({ id, numero, ilhaId, ilhaNome });
+                });
+            }
+            if (dom.salaCancelar) {
+                dom.salaCancelar.addEventListener('click', () => resetarFormularioGestao('sala'));
+            }
+            if (dom.salaLista) {
+                dom.salaLista.addEventListener('click', evento => {
+                    const botao = evento.target.closest('button[data-action]');
+                    if (!botao) return;
+                    const id = Number(botao.dataset.id);
+                    if (botao.dataset.action === 'edit') {
+                        const numero = botao.dataset.numero || '';
+                        const ilhaId = botao.dataset.ilhaId ? Number(botao.dataset.ilhaId) : null;
+                        const ilhaNome = botao.dataset.ilhaNome || '';
+                        preencherFormularioGestao('sala', { id, numero, ilhaId, ilhaNome });
+                    } else if (botao.dataset.action === 'delete') {
+                        const numero = botao.dataset.numero || '';
+                        abrirConfirmacaoGestao({
+                            titulo: 'Remover sala',
+                            mensagem: `Confirma a exclusão da sala “${numero}”?`,
+                            onConfirm: () => excluirGestaoSala(id, numero)
+                        });
+                    }
+                });
+                dom.salaLista.addEventListener('change', evento => {
+                    const checkbox = evento.target.closest('.gestao-sala-checkbox');
+                    if (!checkbox) return;
+                    const id = Number(checkbox.dataset.id);
+                    const selecao = obterSelecaoSalasSet();
+                    if (checkbox.checked) {
+                        selecao.add(id);
+                    } else {
+                        selecao.delete(id);
+                        selecao.delete(String(id));
+                    }
+                    atualizarResumoSelecaoSalas();
+                });
+            }
+            if (dom.salaSelectTodos) {
+                dom.salaSelectTodos.addEventListener('change', () => {
+                    const selecao = obterSelecaoSalasSet();
+                    const checkboxes = dom.salaLista ? Array.from(dom.salaLista.querySelectorAll('.gestao-sala-checkbox')) : [];
+                    const marcar = !!dom.salaSelectTodos.checked;
+                    checkboxes.forEach(cb => {
+                        cb.checked = marcar;
+                        const id = Number(cb.dataset.id);
+                        if (Number.isInteger(id)) {
+                            if (marcar) {
+                                selecao.add(id);
+                            } else {
+                                selecao.delete(id);
+                                selecao.delete(String(id));
+                            }
+                        }
+                    });
+                    atualizarResumoSelecaoSalas();
+                });
+            }
+            if (dom.salaLoteForm) {
+                dom.salaLoteForm.addEventListener('submit', evento => {
+                    evento.preventDefault();
+                    limparFeedbackGestaoCadastros();
+                    aplicarGestaoSalaLote();
+                });
+            }
+            if (dom.salaLoteLimpar) {
+                dom.salaLoteLimpar.addEventListener('click', evento => {
+                    evento.preventDefault();
+                    limparSelecaoSalas();
+                });
+            }
+            if (dom.historicoForm) {
+                dom.historicoForm.addEventListener('submit', evento => {
+                    evento.preventDefault();
+                    atualizarFiltrosHistoricoGestao();
+                    carregarHistoricoGestaoCadastros({ mostrarMensagem: true });
+                });
+            }
+            if (dom.historicoReset) {
+                dom.historicoReset.addEventListener('click', evento => {
+                    evento.preventDefault();
+                    if (dom.historicoForm) dom.historicoForm.reset();
+                    if (dom.historicoBusca) dom.historicoBusca.value = '';
+                    if (dom.historicoEntidade) dom.historicoEntidade.value = '';
+                    if (dom.historicoAcao) dom.historicoAcao.value = '';
+                    if (dom.historicoUsuario) dom.historicoUsuario.value = '';
+                    if (dom.historicoInicio) dom.historicoInicio.value = '';
+                    if (dom.historicoFim) dom.historicoFim.value = '';
+                    atualizarFiltrosHistoricoGestao(true);
+                    carregarHistoricoGestaoCadastros({ mostrarMensagem: true });
+                });
+            }
+            if (dom.historicoRecarregar) {
+                dom.historicoRecarregar.addEventListener('click', evento => {
+                    evento.preventDefault();
+                    carregarHistoricoGestaoCadastros({ mostrarMensagem: true, forcar: true });
+                });
+            }
+            if (dom.confirmModal) {
+                dom.confirmModal.addEventListener('click', evento => {
+                    if (evento.target === dom.confirmModal) {
+                        fecharConfirmacaoGestao();
+                    }
+                });
+                dom.confirmModal.querySelectorAll('.close-modal').forEach(botao => {
+                    botao.addEventListener('click', evento => {
+                        evento.preventDefault();
+                        fecharConfirmacaoGestao();
+                    });
+                });
+            }
+        }
+
+        function coletarFiltrosHistoricoDoDom() {
+            const dom = obterDomGestaoCadastros();
+            return {
+                busca: dom.historicoBusca ? dom.historicoBusca.value.trim() : '',
+                entidade: dom.historicoEntidade ? dom.historicoEntidade.value : '',
+                acao: dom.historicoAcao ? dom.historicoAcao.value : '',
+                usuario: dom.historicoUsuario ? dom.historicoUsuario.value.trim() : '',
+                inicio: dom.historicoInicio ? dom.historicoInicio.value : '',
+                fim: dom.historicoFim ? dom.historicoFim.value : ''
+            };
+        }
+
+        function atualizarFiltrosHistoricoGestao(reset = false) {
+            const historico = stores.gestaoCadastros.historico;
+            if (!historico) return;
+            historico.filtros = reset
+                ? { busca: '', entidade: '', acao: '', usuario: '', inicio: '', fim: '' }
+                : coletarFiltrosHistoricoDoDom();
+        }
+
+        function confirmarExclusaoIlha({ id, nome, totalSalas, salas }) {
+            const listaIlhas = (stores.gestaoCadastros.dados?.ilhas || []).filter(ilha => Number(ilha.id) !== Number(id));
+            const possuiReassociacao = totalSalas > 0 && listaIlhas.length > 0;
+            const detalhes = [];
+            if (totalSalas > 0) {
+                detalhes.push(`<p>Esta ilha possui ${totalSalas} sala${totalSalas === 1 ? '' : 's'} associada${totalSalas === 1 ? '' : 's'}.</p>`);
+                if (Array.isArray(salas) && salas.length) {
+                    const itens = salas.slice(0, 8).map(sala => `<li>${escapeHtml(sala)}</li>`);
+                    if (salas.length > 8) {
+                        itens.push('<li>…</li>');
+                    }
+                    detalhes.push(`<ul>${itens.join('')}</ul>`);
+                }
+                if (possuiReassociacao) {
+                    const opcoes = listaIlhas.map(item => `<option value="${item.id}" data-nome="${escapeHtml(item.nome || '')}">${escapeHtml(item.nome || '')}</option>`).join('');
+                    detalhes.push(`
+                        <label for="gestao-confirm-ilha-destino">Reatribuir salas para:</label>
+                        <select id="gestao-confirm-ilha-destino">
+                            <option value="">Manter sem ilha</option>
+                            ${opcoes}
+                        </select>
+                    `);
+                }
+            } else {
+                detalhes.push('<p>Esta ilha não possui salas associadas.</p>');
+            }
+
+            const aviso = totalSalas > 0
+                ? (possuiReassociacao
+                    ? 'As salas selecionadas serão movidas para a ilha escolhida.'
+                    : 'As salas permanecerão cadastradas sem associação de ilha.')
+                : '';
+
+            abrirConfirmacaoGestao({
+                titulo: 'Remover ilha',
+                mensagem: `Confirma a exclusão da ilha “${nome}”?`,
+                detalhes: detalhes.join(''),
+                aviso,
+                confirmarTexto: 'Excluir',
+                onConfirm: () => {
+                    let reassociarId = null;
+                    let reassociarNome = '';
+                    if (possuiReassociacao) {
+                        const select = document.getElementById('gestao-confirm-ilha-destino');
+                        if (select) {
+                            const valor = select.value;
+                            if (valor) {
+                                reassociarId = Number(valor);
+                                const option = select.selectedOptions && select.selectedOptions.length ? select.selectedOptions[0] : null;
+                                reassociarNome = option ? (option.dataset.nome || option.textContent.trim()) : '';
+                            }
+                        }
+                    }
+                    excluirGestaoIlha(id, nome, reassociarId, reassociarNome);
+                }
+            });
+        }
+
+        function abrirConfirmacaoGestao(opcoes = {}) {
+            const dom = obterDomGestaoCadastros();
+            if (!dom.confirmModal) return;
+            const { titulo, mensagem, detalhes = '', aviso = '', confirmarTexto, onConfirm, onCancel } = opcoes;
+
+            if (dom.confirmTitle) {
+                dom.confirmTitle.innerHTML = dom.confirmDefaultTitleHtml || dom.confirmTitle.innerHTML;
+                if (titulo) {
+                    const icon = dom.confirmTitle.querySelector('i');
+                    if (icon) {
+                        const iconClone = icon.cloneNode(true);
+                        dom.confirmTitle.innerHTML = '';
+                        dom.confirmTitle.appendChild(iconClone);
+                        dom.confirmTitle.appendChild(document.createTextNode(` ${titulo}`));
+                    } else {
+                        dom.confirmTitle.textContent = titulo;
+                    }
+                }
+            }
+
+            if (dom.confirmMessage) {
+                dom.confirmMessage.textContent = mensagem || '';
+            }
+
+            if (dom.confirmDetails) {
+                dom.confirmDetails.innerHTML = detalhes || '';
+                dom.confirmDetails.classList.toggle('is-visible', !!detalhes);
+            }
+
+            if (dom.confirmWarning) {
+                dom.confirmWarning.textContent = aviso || '';
+                dom.confirmWarning.classList.toggle('is-visible', !!aviso);
+            }
+
+            if (dom.confirmAccept) {
+                dom.confirmAccept.innerHTML = dom.confirmDefaultAcceptHtml || dom.confirmAccept.innerHTML;
+                const label = confirmarTexto || dom.confirmDefaultLabel || 'Confirmar';
+                const icon = dom.confirmAccept.querySelector('i');
+                if (icon) {
+                    const iconClone = icon.cloneNode(true);
+                    dom.confirmAccept.innerHTML = '';
+                    dom.confirmAccept.appendChild(iconClone);
+                    dom.confirmAccept.appendChild(document.createTextNode(` ${label}`));
+                } else {
+                    dom.confirmAccept.textContent = label;
+                }
+                dom.confirmAccept.disabled = false;
+                dom.confirmAccept.removeAttribute('aria-busy');
+                dom.confirmAccept.onclick = evento => {
+                    evento.preventDefault();
+                    dom.confirmAccept.disabled = true;
+                    dom.confirmAccept.setAttribute('aria-busy', 'true');
+                    let resultado;
+                    try {
+                        resultado = typeof onConfirm === 'function' ? onConfirm({ event: evento, close: fecharConfirmacaoGestao }) : undefined;
+                    } catch (erro) {
+                        console.error('Erro ao confirmar ação:', erro);
+                        dom.confirmAccept.disabled = false;
+                        dom.confirmAccept.removeAttribute('aria-busy');
+                        return;
+                    }
+                    if (resultado === false) {
+                        dom.confirmAccept.disabled = false;
+                        dom.confirmAccept.removeAttribute('aria-busy');
+                        return;
+                    }
+                    fecharConfirmacaoGestao(true);
+                };
+            }
+
+            domCache.gestaoCadastros.confirmOnCancel = typeof onCancel === 'function' ? onCancel : null;
+
+            dom.confirmModal.style.display = 'block';
+            dom.confirmModal.classList.add('is-visible');
+            if (dom.confirmAccept) {
+                dom.confirmAccept.focus({ preventScroll: true });
+            }
+        }
+
+        function fecharConfirmacaoGestao(foiConfirmado = false) {
+            const dom = obterDomGestaoCadastros();
+            if (!dom.confirmModal) return;
+            dom.confirmModal.style.display = 'none';
+            dom.confirmModal.classList.remove('is-visible');
+            if (dom.confirmMessage) dom.confirmMessage.textContent = '';
+            if (dom.confirmDetails) {
+                dom.confirmDetails.innerHTML = '';
+                dom.confirmDetails.classList.remove('is-visible');
+            }
+            if (dom.confirmWarning) {
+                dom.confirmWarning.textContent = '';
+                dom.confirmWarning.classList.remove('is-visible');
+            }
+            if (dom.confirmTitle && dom.confirmDefaultTitleHtml !== undefined) {
+                dom.confirmTitle.innerHTML = dom.confirmDefaultTitleHtml;
+            }
+            if (dom.confirmAccept) {
+                dom.confirmAccept.innerHTML = dom.confirmDefaultAcceptHtml || dom.confirmAccept.innerHTML;
+                dom.confirmAccept.disabled = false;
+                dom.confirmAccept.removeAttribute('aria-busy');
+                dom.confirmAccept.onclick = null;
+            }
+            if (!foiConfirmado && typeof domCache.gestaoCadastros.confirmOnCancel === 'function') {
+                try {
+                    domCache.gestaoCadastros.confirmOnCancel();
+                } catch (erro) {
+                    console.error('Erro ao executar callback de cancelamento:', erro);
+                }
+            }
+            domCache.gestaoCadastros.confirmOnCancel = null;
+        }
+
+        function carregarGestaoCadastros(opcoes = {}) {
+            const { mostrarMensagem = false } = opcoes;
+            const estado = stores.gestaoCadastros;
+            if (estado.carregando) {
+                return;
+            }
+
+            estado.carregando = true;
+            estado.erro = null;
+            atualizarPainelGestaoCadastros();
+
+            const runnerDisponivel = typeof google !== 'undefined' && google?.script?.run;
+            if (!runnerDisponivel) {
+                const dadosDemo = obterGestaoCadastrosDemonstracao();
+                estado.dados = dadosDemo;
+                estado.carregando = false;
+                estado.carregado = true;
+                estado.ultimaAtualizacao = dadosDemo.timestamp;
+                atualizarPainelGestaoCadastros();
+                if (mostrarMensagem) {
+                    mostrarFeedbackGestaoCadastros('success', 'Exibindo dados demonstrativos dos cadastros.');
+                }
+                return;
+            }
+
+            executarGoogleScript({
+                funcao: 'gestaoListarCadastros',
+                parametros: [],
+                tentativas: 1,
+                contexto: {
+                    onFinally() {
+                        estado.carregando = false;
+                        atualizarPainelGestaoCadastros();
+                    }
+                },
+                onSuccess(resposta) {
+                    const sucesso = processarRespostaGestao(resposta, {
+                        mostrarMensagem,
+                        mensagemPadrao: 'Cadastros atualizados com sucesso.'
+                    });
+                    if (!sucesso && mostrarMensagem) {
+                        mostrarFeedbackGestaoCadastros('error', resposta?.message || resposta?.mensagem || 'Não foi possível atualizar os cadastros.');
+                    }
+                },
+                onFailure(erro) {
+                    estado.carregado = false;
+                    estado.erro = erro?.message || 'Erro ao carregar cadastros.';
+                    if (mostrarMensagem) {
+                        mostrarFeedbackGestaoCadastros('error', estado.erro);
+                    }
+                },
+                mensagemErroPadrao: 'Erro ao carregar cadastros.'
+            });
+        }
+
+        function normalizarDadosGestao(dados) {
+            const timestamp = dados?.timestamp || new Date().toISOString();
+            const especialidades = Array.isArray(dados?.especialidades)
+                ? dados.especialidades.map(item => ({
+                    id: Number(item.id),
+                    nome: item.nome || ''
+                })).filter(item => item.id)
+                : [];
+            const categorias = Array.isArray(dados?.categorias)
+                ? dados.categorias.map(item => ({
+                    id: Number(item.id),
+                    nome: item.nome || ''
+                })).filter(item => item.id)
+                : [];
+            const ilhas = Array.isArray(dados?.ilhas)
+                ? dados.ilhas.map(item => ({
+                    id: Number(item.id),
+                    nome: item.nome || '',
+                    totalSalas: Number(item.totalSalas) || 0,
+                    salas: Array.isArray(item.salas) ? item.salas.slice() : [],
+                    linhas: Array.isArray(item.linhas) ? item.linhas.slice() : [],
+                    duplicada: !!item.duplicada
+                })).filter(item => item.id)
+                : [];
+            const salas = Array.isArray(dados?.salas)
+                ? dados.salas.map(item => ({
+                    id: Number(item.id),
+                    numero: item.numero || '',
+                    ilha: item.ilha || '',
+                    ilhaChave: item.ilhaChave || normalizarChaveCadastroLocal(item.ilha || '')
+                })).filter(item => item.id)
+                : [];
+
+            const estatisticasOrigem = dados?.estatisticas || {};
+            const estatisticas = {
+                totalEspecialidades: Number(estatisticasOrigem.totalEspecialidades ?? especialidades.length) || especialidades.length,
+                totalCategorias: Number(estatisticasOrigem.totalCategorias ?? categorias.length) || categorias.length,
+                totalIlhas: Number(estatisticasOrigem.totalIlhas ?? ilhas.length) || ilhas.length,
+                totalSalas: Number(estatisticasOrigem.totalSalas ?? salas.length) || salas.length,
+                ilhasSemSala: Number(estatisticasOrigem.ilhasSemSala ?? ilhas.filter(ilha => (ilha.totalSalas || 0) === 0).length) || ilhas.filter(ilha => (ilha.totalSalas || 0) === 0).length,
+                salasSemIlha: Number(estatisticasOrigem.salasSemIlha ?? salas.filter(sala => !sala.ilha).length) || salas.filter(sala => !sala.ilha).length
+            };
+
+            return {
+                timestamp,
+                especialidades,
+                categorias,
+                ilhas,
+                salas,
+                estatisticas
+            };
+        }
+
+        function processarRespostaGestao(resposta, opcoes = {}) {
+            const estado = stores.gestaoCadastros;
+            if (!resposta || resposta.success !== true || !resposta.dados) {
+                const mensagem = resposta?.message || resposta?.mensagem || 'Não foi possível processar a operação.';
+                estado.erro = mensagem;
+                estado.carregado = false;
+                if (opcoes.mostrarMensagem) {
+                    mostrarFeedbackGestaoCadastros('error', mensagem);
+                }
+                return false;
+            }
+
+            estado.dados = normalizarDadosGestao(resposta.dados);
+            estado.carregado = true;
+            estado.erro = null;
+            estado.ultimaAtualizacao = estado.dados.timestamp || resposta.timestamp || new Date().toISOString();
+            limparSelecaoSalasInexistentes();
+            atualizarPainelGestaoCadastros();
+
+            if (opcoes.mostrarMensagem !== false) {
+                const mensagem = resposta.mensagem || resposta.message || opcoes.mensagemPadrao || '';
+                if (mensagem) {
+                    mostrarFeedbackGestaoCadastros('success', mensagem);
+                }
+            }
+
+            return true;
+        }
+
+        function obterGestaoCadastrosDemonstracao() {
+            const timestamp = new Date().toISOString();
+            const especialidades = [
+                { id: 2, nome: 'Clínica Geral' },
+                { id: 3, nome: 'Ortopedia' },
+                { id: 4, nome: 'Pediatria' }
+            ];
+            const categorias = [
+                { id: 5, nome: 'Médico' },
+                { id: 6, nome: 'Enfermeiro' }
+            ];
+            const ilhas = [
+                { id: 10, nome: 'Ilha Azul', totalSalas: 2, salas: ['201', '202'], linhas: [10], duplicada: false },
+                { id: 11, nome: 'Ilha Central', totalSalas: 1, salas: ['301'], linhas: [11], duplicada: false },
+                { id: 12, nome: 'Ilha Norte', totalSalas: 0, salas: [], linhas: [12], duplicada: false }
+            ];
+            const salas = [
+                { id: 20, numero: '201', ilha: 'Ilha Azul', ilhaChave: normalizarChaveCadastroLocal('Ilha Azul') },
+                { id: 21, numero: '202', ilha: 'Ilha Azul', ilhaChave: normalizarChaveCadastroLocal('Ilha Azul') },
+                { id: 22, numero: '301', ilha: 'Ilha Central', ilhaChave: normalizarChaveCadastroLocal('Ilha Central') },
+                { id: 23, numero: '401', ilha: '', ilhaChave: '' }
+            ];
+            return normalizarDadosGestao({ timestamp, especialidades, categorias, ilhas, salas });
+        }
+
+        function salvarGestaoEspecialidade({ id, nome }) {
+            const dom = obterDomGestaoCadastros();
+            definirEstadoBotaoAcao(dom.especialidadeSalvar, true, id ? 'Atualizando...' : 'Salvando...');
+            const estado = stores.gestaoCadastros;
+            estado.carregando = true;
+            atualizarPainelGestaoCadastros();
+
+            const runnerDisponivel = typeof google !== 'undefined' && google?.script?.run;
+            if (!runnerDisponivel) {
+                estado.carregando = false;
+                definirEstadoBotaoAcao(dom.especialidadeSalvar, false);
+                atualizarPainelGestaoCadastros();
+                mostrarFeedbackGestaoCadastros('error', 'Integração com Apps Script indisponível neste ambiente.');
+                return;
+            }
+
+            executarGoogleScript({
+                funcao: 'gestaoSalvarEspecialidade',
+                parametros: [{ id, nome }],
+                tentativas: 1,
+                contexto: {
+                    onFinally() {
+                        estado.carregando = false;
+                        definirEstadoBotaoAcao(dom.especialidadeSalvar, false);
+                        atualizarPainelGestaoCadastros();
+                    }
+                },
+                onSuccess(resposta) {
+                    if (processarRespostaGestao(resposta, { mostrarMensagem: true })) {
+                        resetarFormularioGestao('especialidade');
+                    }
+                },
+                onFailure(erro) {
+                    mostrarFeedbackGestaoCadastros('error', erro?.message || 'Não foi possível salvar a especialidade.');
+                },
+                mensagemErroPadrao: 'Erro ao salvar especialidade.'
+            });
+        }
+
+        function excluirGestaoEspecialidade(id, nome) {
+            limparFeedbackGestaoCadastros();
+            const estado = stores.gestaoCadastros;
+            estado.carregando = true;
+            atualizarPainelGestaoCadastros();
+
+            const runnerDisponivel = typeof google !== 'undefined' && google?.script?.run;
+            if (!runnerDisponivel) {
+                estado.carregando = false;
+                atualizarPainelGestaoCadastros();
+                mostrarFeedbackGestaoCadastros('error', 'Integração com Apps Script indisponível neste ambiente.');
+                return;
+            }
+
+            executarGoogleScript({
+                funcao: 'gestaoExcluirEspecialidade',
+                parametros: [{ id }],
+                tentativas: 1,
+                contexto: {
+                    onFinally() {
+                        estado.carregando = false;
+                        atualizarPainelGestaoCadastros();
+                    }
+                },
+                onSuccess(resposta) {
+                    if (processarRespostaGestao(resposta, { mostrarMensagem: true })) {
+                        if (stores.gestaoCadastros.selecao.especialidadeId === id) {
+                            resetarFormularioGestao('especialidade');
+                        }
+                    }
+                },
+                onFailure(erro) {
+                    mostrarFeedbackGestaoCadastros('error', erro?.message || `Não foi possível excluir a especialidade ${nome}.`);
+                },
+                mensagemErroPadrao: 'Erro ao excluir especialidade.'
+            });
+        }
+
+        function salvarGestaoCategoria({ id, nome }) {
+            const dom = obterDomGestaoCadastros();
+            definirEstadoBotaoAcao(dom.categoriaSalvar, true, id ? 'Atualizando...' : 'Salvando...');
+            const estado = stores.gestaoCadastros;
+            estado.carregando = true;
+            atualizarPainelGestaoCadastros();
+
+            const runnerDisponivel = typeof google !== 'undefined' && google?.script?.run;
+            if (!runnerDisponivel) {
+                estado.carregando = false;
+                definirEstadoBotaoAcao(dom.categoriaSalvar, false);
+                atualizarPainelGestaoCadastros();
+                mostrarFeedbackGestaoCadastros('error', 'Integração com Apps Script indisponível neste ambiente.');
+                return;
+            }
+
+            executarGoogleScript({
+                funcao: 'gestaoSalvarCategoria',
+                parametros: [{ id, nome }],
+                tentativas: 1,
+                contexto: {
+                    onFinally() {
+                        estado.carregando = false;
+                        definirEstadoBotaoAcao(dom.categoriaSalvar, false);
+                        atualizarPainelGestaoCadastros();
+                    }
+                },
+                onSuccess(resposta) {
+                    if (processarRespostaGestao(resposta, { mostrarMensagem: true })) {
+                        resetarFormularioGestao('categoria');
+                    }
+                },
+                onFailure(erro) {
+                    mostrarFeedbackGestaoCadastros('error', erro?.message || 'Não foi possível salvar a categoria.');
+                },
+                mensagemErroPadrao: 'Erro ao salvar categoria.'
+            });
+        }
+
+        function excluirGestaoCategoria(id, nome) {
+            limparFeedbackGestaoCadastros();
+            const estado = stores.gestaoCadastros;
+            estado.carregando = true;
+            atualizarPainelGestaoCadastros();
+
+            const runnerDisponivel = typeof google !== 'undefined' && google?.script?.run;
+            if (!runnerDisponivel) {
+                estado.carregando = false;
+                atualizarPainelGestaoCadastros();
+                mostrarFeedbackGestaoCadastros('error', 'Integração com Apps Script indisponível neste ambiente.');
+                return;
+            }
+
+            executarGoogleScript({
+                funcao: 'gestaoExcluirCategoria',
+                parametros: [{ id }],
+                tentativas: 1,
+                contexto: {
+                    onFinally() {
+                        estado.carregando = false;
+                        atualizarPainelGestaoCadastros();
+                    }
+                },
+                onSuccess(resposta) {
+                    if (processarRespostaGestao(resposta, { mostrarMensagem: true })) {
+                        if (stores.gestaoCadastros.selecao.categoriaId === id) {
+                            resetarFormularioGestao('categoria');
+                        }
+                    }
+                },
+                onFailure(erro) {
+                    mostrarFeedbackGestaoCadastros('error', erro?.message || `Não foi possível excluir a categoria ${nome}.`);
+                },
+                mensagemErroPadrao: 'Erro ao excluir categoria.'
+            });
+        }
+
+        function salvarGestaoIlha({ id, nome }) {
+            const dom = obterDomGestaoCadastros();
+            definirEstadoBotaoAcao(dom.ilhaSalvar, true, id ? 'Atualizando...' : 'Salvando...');
+            const estado = stores.gestaoCadastros;
+            estado.carregando = true;
+            atualizarPainelGestaoCadastros();
+
+            const runnerDisponivel = typeof google !== 'undefined' && google?.script?.run;
+            if (!runnerDisponivel) {
+                estado.carregando = false;
+                definirEstadoBotaoAcao(dom.ilhaSalvar, false);
+                atualizarPainelGestaoCadastros();
+                mostrarFeedbackGestaoCadastros('error', 'Integração com Apps Script indisponível neste ambiente.');
+                return;
+            }
+
+            executarGoogleScript({
+                funcao: 'gestaoSalvarIlha',
+                parametros: [{ id, nome }],
+                tentativas: 1,
+                contexto: {
+                    onFinally() {
+                        estado.carregando = false;
+                        definirEstadoBotaoAcao(dom.ilhaSalvar, false);
+                        atualizarPainelGestaoCadastros();
+                    }
+                },
+                onSuccess(resposta) {
+                    if (processarRespostaGestao(resposta, { mostrarMensagem: true })) {
+                        resetarFormularioGestao('ilha');
+                    }
+                },
+                onFailure(erro) {
+                    mostrarFeedbackGestaoCadastros('error', erro?.message || 'Não foi possível salvar a ilha.');
+                },
+                mensagemErroPadrao: 'Erro ao salvar ilha.'
+            });
+        }
+
+        function excluirGestaoIlha(id, nome, reassociarId, reassociarNome) {
+            limparFeedbackGestaoCadastros();
+            const estado = stores.gestaoCadastros;
+            estado.carregando = true;
+            atualizarPainelGestaoCadastros();
+
+            const runnerDisponivel = typeof google !== 'undefined' && google?.script?.run;
+            if (!runnerDisponivel) {
+                estado.carregando = false;
+                atualizarPainelGestaoCadastros();
+                mostrarFeedbackGestaoCadastros('error', 'Integração com Apps Script indisponível neste ambiente.');
+                return;
+            }
+
+            executarGoogleScript({
+                funcao: 'gestaoExcluirIlha',
+                parametros: [{ id, reassociarId, reassociarNome }],
+                tentativas: 1,
+                contexto: {
+                    onFinally() {
+                        estado.carregando = false;
+                        atualizarPainelGestaoCadastros();
+                    }
+                },
+                onSuccess(resposta) {
+                    if (processarRespostaGestao(resposta, { mostrarMensagem: true })) {
+                        if (stores.gestaoCadastros.selecao.ilhaId === id) {
+                            resetarFormularioGestao('ilha');
+                        }
+                    }
+                },
+                onFailure(erro) {
+                    mostrarFeedbackGestaoCadastros('error', erro?.message || `Não foi possível excluir a ilha ${nome}.`);
+                },
+                mensagemErroPadrao: 'Erro ao excluir ilha.'
+            });
+        }
+
+        function salvarGestaoSala({ id, numero, ilhaId, ilhaNome }) {
+            const dom = obterDomGestaoCadastros();
+            definirEstadoBotaoAcao(dom.salaSalvar, true, id ? 'Atualizando...' : 'Salvando...');
+            const estado = stores.gestaoCadastros;
+            estado.carregando = true;
+            atualizarPainelGestaoCadastros();
+
+            const runnerDisponivel = typeof google !== 'undefined' && google?.script?.run;
+            if (!runnerDisponivel) {
+                estado.carregando = false;
+                definirEstadoBotaoAcao(dom.salaSalvar, false);
+                atualizarPainelGestaoCadastros();
+                mostrarFeedbackGestaoCadastros('error', 'Integração com Apps Script indisponível neste ambiente.');
+                return;
+            }
+
+            const payload = { id, numero };
+            if (Number.isInteger(ilhaId)) {
+                payload.ilhaId = ilhaId;
+            }
+            if (ilhaNome !== undefined) {
+                payload.ilhaNome = ilhaNome;
+            }
+
+            executarGoogleScript({
+                funcao: 'gestaoSalvarSala',
+                parametros: [payload],
+                tentativas: 1,
+                contexto: {
+                    onFinally() {
+                        estado.carregando = false;
+                        definirEstadoBotaoAcao(dom.salaSalvar, false);
+                        atualizarPainelGestaoCadastros();
+                    }
+                },
+                onSuccess(resposta) {
+                    if (processarRespostaGestao(resposta, { mostrarMensagem: true })) {
+                        resetarFormularioGestao('sala');
+                    }
+                },
+                onFailure(erro) {
+                    mostrarFeedbackGestaoCadastros('error', erro?.message || 'Não foi possível salvar a sala.');
+                },
+                mensagemErroPadrao: 'Erro ao salvar sala.'
+            });
+        }
+
+        function excluirGestaoSala(id, numero) {
+            limparFeedbackGestaoCadastros();
+            const estado = stores.gestaoCadastros;
+            estado.carregando = true;
+            atualizarPainelGestaoCadastros();
+
+            const runnerDisponivel = typeof google !== 'undefined' && google?.script?.run;
+            if (!runnerDisponivel) {
+                estado.carregando = false;
+                atualizarPainelGestaoCadastros();
+                mostrarFeedbackGestaoCadastros('error', 'Integração com Apps Script indisponível neste ambiente.');
+                return;
+            }
+
+            executarGoogleScript({
+                funcao: 'gestaoExcluirSala',
+                parametros: [{ id }],
+                tentativas: 1,
+                contexto: {
+                    onFinally() {
+                        estado.carregando = false;
+                        atualizarPainelGestaoCadastros();
+                    }
+                },
+                onSuccess(resposta) {
+                    if (processarRespostaGestao(resposta, { mostrarMensagem: true })) {
+                        if (stores.gestaoCadastros.selecao.salaId === id) {
+                            resetarFormularioGestao('sala');
+                        }
+                        limparSelecaoSalasInexistentes();
+                        atualizarResumoSelecaoSalas();
+                    }
+                },
+                onFailure(erro) {
+                    mostrarFeedbackGestaoCadastros('error', erro?.message || `Não foi possível excluir a sala ${numero}.`);
+                },
+                mensagemErroPadrao: 'Erro ao excluir sala.'
+            });
+        }
+
+        function aplicarGestaoSalaLote() {
+            const dom = obterDomGestaoCadastros();
+            const selecao = Array.from(obterSelecaoSalasSet()).map(valor => Number(valor)).filter(Number.isInteger);
+            if (!selecao.length) {
+                mostrarFeedbackGestaoCadastros('error', 'Selecione ao menos uma sala para aplicar a alteração em lote.');
+                return;
+            }
+
+            const ilhaValor = dom.salaLoteIlha ? dom.salaLoteIlha.value : '';
+            const ilhaId = ilhaValor ? Number(ilhaValor) : null;
+            let ilhaNome = '';
+            if (ilhaId) {
+                const info = encontrarIlhaPorId(ilhaId);
+                ilhaNome = info ? info.nome : '';
+            }
+
+            const estado = stores.gestaoCadastros;
+            estado.carregando = true;
+            atualizarPainelGestaoCadastros();
+            definirEstadoBotaoAcao(dom.salaLoteAplicar, true, 'Aplicando...');
+
+            const runnerDisponivel = typeof google !== 'undefined' && google?.script?.run;
+            if (!runnerDisponivel) {
+                estado.carregando = false;
+                definirEstadoBotaoAcao(dom.salaLoteAplicar, false);
+                atualizarPainelGestaoCadastros();
+                mostrarFeedbackGestaoCadastros('error', 'Integração com Apps Script indisponível neste ambiente.');
+                return;
+            }
+
+            const payload = { salas: selecao };
+            if (Number.isInteger(ilhaId)) {
+                payload.ilhaId = ilhaId;
+            }
+            if (ilhaNome !== undefined) {
+                payload.ilhaNome = ilhaNome;
+            }
+
+            executarGoogleScript({
+                funcao: 'gestaoAtualizarSalasEmLote',
+                parametros: [payload],
+                tentativas: 1,
+                contexto: {
+                    onFinally() {
+                        estado.carregando = false;
+                        definirEstadoBotaoAcao(dom.salaLoteAplicar, false);
+                        atualizarPainelGestaoCadastros();
+                    }
+                },
+                onSuccess(resposta) {
+                    if (processarRespostaGestao(resposta, { mostrarMensagem: true })) {
+                        limparSelecaoSalas();
+                    }
+                },
+                onFailure(erro) {
+                    mostrarFeedbackGestaoCadastros('error', erro?.message || 'Não foi possível aplicar a alteração em lote.');
+                },
+                mensagemErroPadrao: 'Erro ao atualizar salas em lote.'
+            });
+        }
+
+        function carregarHistoricoGestaoCadastros(opcoes = {}) {
+            const { mostrarMensagem = false } = opcoes;
+            const historico = stores.gestaoCadastros.historico;
+            if (historico.carregando) {
+                return;
+            }
+
+            historico.carregando = true;
+            historico.erro = null;
+            renderGestaoHistorico();
+
+            const filtros = historico.filtros || {};
+            const runnerDisponivel = typeof google !== 'undefined' && google?.script?.run;
+            if (!runnerDisponivel) {
+                historico.registros = obterHistoricoGestaoDemonstracao(filtros).map(normalizarRegistroHistorico);
+                historico.timestamp = new Date().toISOString();
+                historico.carregando = false;
+                renderGestaoHistorico();
+                if (mostrarMensagem) {
+                    mostrarFeedbackGestaoCadastros('success', 'Exibindo histórico demonstrativo.');
+                }
+                return;
+            }
+
+            executarGoogleScript({
+                funcao: 'gestaoListarHistoricoLogs',
+                parametros: [{
+                    busca: filtros.busca || '',
+                    entidade: filtros.entidade || '',
+                    acao: filtros.acao || '',
+                    usuario: filtros.usuario || '',
+                    periodo: { inicio: filtros.inicio || '', fim: filtros.fim || '' },
+                    limite: 200
+                }],
+                tentativas: 1,
+                contexto: {
+                    onFinally() {
+                        historico.carregando = false;
+                        renderGestaoHistorico();
+                    }
+                },
+                onSuccess(resposta) {
+                    if (resposta && resposta.success) {
+                        const registros = Array.isArray(resposta.registros)
+                            ? resposta.registros.map(normalizarRegistroHistorico).filter(Boolean)
+                            : [];
+                        historico.registros = registros;
+                        historico.timestamp = resposta.timestamp || new Date().toISOString();
+                        historico.erro = null;
+                        if (mostrarMensagem) {
+                            const mensagem = resposta.mensagem || resposta.message || `Histórico atualizado (${registros.length} registro${registros.length === 1 ? '' : 's'}).`;
+                            mostrarFeedbackGestaoCadastros('success', mensagem);
+                        }
+                    } else {
+                        const mensagem = resposta?.message || resposta?.mensagem || 'Não foi possível carregar o histórico.';
+                        historico.erro = mensagem;
+                        if (mostrarMensagem) {
+                            mostrarFeedbackGestaoCadastros('error', mensagem);
+                        }
+                    }
+                },
+                onFailure(erro) {
+                    const mensagem = erro?.message || 'Erro ao carregar histórico.';
+                    historico.erro = mensagem;
+                    if (mostrarMensagem) {
+                        mostrarFeedbackGestaoCadastros('error', mensagem);
+                    }
+                },
+                mensagemErroPadrao: 'Erro ao carregar histórico.'
+            });
+        }
+
+        function normalizarRegistroHistorico(item) {
+            if (!item) return null;
+            const campos = Array.isArray(item.campos)
+                ? item.campos.map(campo => ({
+                    campo: campo.campo || '',
+                    antes: campo.antes ?? '',
+                    depois: campo.depois ?? ''
+                }))
+                : [];
+            return {
+                timestamp: item.timestamp || '',
+                usuario: item.usuario || '',
+                entidade: item.entidade || (item.dados && item.dados.entidade) || '',
+                operacao: item.operacao || (item.dados && item.dados.operacao) || '',
+                detalhes: item.detalhes || item.acao || '',
+                acao: item.acao || '',
+                campos
+            };
+        }
+
+        function obterHistoricoGestaoDemonstracao(filtros = {}) {
+            const agora = Date.now();
+            const base = [
+                {
+                    timestamp: new Date(agora - 45 * 60000).toISOString(),
+                    usuario: 'gestor@exemplo.com',
+                    entidade: 'ilha',
+                    operacao: 'update',
+                    detalhes: 'Renomeou ilha Azul para ilha Central',
+                    acao: 'Atualização de cadastro',
+                    campos: [
+                        { campo: 'nome', antes: 'Ilha Azul', depois: 'Ilha Central' }
+                    ]
+                },
+                {
+                    timestamp: new Date(agora - 2 * 3600000).toISOString(),
+                    usuario: 'operador@exemplo.com',
+                    entidade: 'sala',
+                    operacao: 'create',
+                    detalhes: 'Adicionou sala 405 sem ilha',
+                    acao: 'Nova sala cadastrada',
+                    campos: [
+                        { campo: 'numero', antes: '', depois: '405' },
+                        { campo: 'ilha', antes: '', depois: '' }
+                    ]
+                },
+                {
+                    timestamp: new Date(agora - 3 * 3600000).toISOString(),
+                    usuario: 'auditoria@exemplo.com',
+                    entidade: 'categoria',
+                    operacao: 'delete',
+                    detalhes: 'Removeu categoria Temporária',
+                    acao: 'Limpeza de cadastro',
+                    campos: [
+                        { campo: 'nome', antes: 'Temporária', depois: '' }
+                    ]
+                }
+            ];
+
+            const chaveBusca = normalizarChaveCadastroLocal(filtros.busca || '');
+            const entidadeFiltro = normalizarChaveCadastroLocal(filtros.entidade || '');
+            const acaoFiltro = normalizarChaveCadastroLocal(filtros.acao || '');
+            const usuarioFiltro = normalizarChaveCadastroLocal(filtros.usuario || '');
+            const inicio = filtros.inicio ? new Date(`${filtros.inicio}T00:00:00`) : null;
+            const fim = filtros.fim ? new Date(`${filtros.fim}T23:59:59`) : null;
+
+            return base.filter(item => {
+                const dataRegistro = item.timestamp ? new Date(item.timestamp) : null;
+                if (inicio && dataRegistro && dataRegistro < inicio) return false;
+                if (fim && dataRegistro && dataRegistro > fim) return false;
+                if (entidadeFiltro && normalizarChaveCadastroLocal(item.entidade) !== entidadeFiltro) return false;
+                if (acaoFiltro && normalizarChaveCadastroLocal(item.operacao) !== acaoFiltro) return false;
+                if (usuarioFiltro && normalizarChaveCadastroLocal(item.usuario) !== usuarioFiltro) return false;
+                if (chaveBusca) {
+                    const alvo = [item.usuario, item.entidade, item.operacao, item.detalhes]
+                        .filter(Boolean)
+                        .map(valor => normalizarChaveCadastroLocal(valor))
+                        .join(' ');
+                    if (!alvo.includes(chaveBusca)) return false;
+                }
+                return true;
             });
         }
 

@@ -33,7 +33,9 @@ const BASE_COLUMNS = {
 const CADASTRO_COLUMNS = {
   ESPECIALIDADES: 1,
   CATEGORIAS: 2,
-  ILHAS: 3
+  ILHAS: 3,
+  SALAS: 4,
+  SALA_ILHA: 5
 };
 
 // Colunas na aba STATUS_SALAS
@@ -345,6 +347,972 @@ function registrarLog(acao, detalhes, dadosExtras) {
   } catch (error) {
     console.error('Erro ao registrar log:', error, acao, detalhes);
   }
+}
+
+function garantirEstruturaCadastroSheet(sheet) {
+  if (!sheet) return null;
+  const ultimaColunaNecessaria = CADASTRO_COLUMNS.SALA_ILHA;
+  if (sheet.getLastColumn() < ultimaColunaNecessaria) {
+    sheet.insertColumnsAfter(sheet.getLastColumn(), ultimaColunaNecessaria - sheet.getLastColumn());
+  }
+  const cabecalhosEsperados = ['ESPECIALIDADES', 'CATEGORIAS', 'ILHAS', 'SALAS', 'ILHA_ASSOCIADA'];
+  const headerRange = sheet.getRange(1, 1, 1, cabecalhosEsperados.length);
+  const headerAtual = headerRange.getValues()[0];
+  let precisaAtualizar = false;
+  const atualizado = headerAtual.map((valor, indice) => {
+    const texto = String(valor || '').trim().toUpperCase();
+    if (texto !== cabecalhosEsperados[indice]) {
+      precisaAtualizar = true;
+      return cabecalhosEsperados[indice];
+    }
+    return texto;
+  });
+  if (precisaAtualizar) {
+    headerRange.setValues([atualizado]);
+  }
+  return sheet;
+}
+
+function obterSheetCadastro() {
+  const spreadsheet = tentarObterSpreadsheetPrincipal();
+  if (!spreadsheet) {
+    throw new Error('Planilha principal não encontrada.');
+  }
+  let sheet = spreadsheet.getSheetByName(SHEET_NAMES.CADASTRO);
+  if (!sheet) {
+    sheet = spreadsheet.insertSheet(SHEET_NAMES.CADASTRO);
+  }
+  return garantirEstruturaCadastroSheet(sheet);
+}
+
+function normalizarChaveCadastro(valor) {
+  return normalizarTextoServidor(valor || '');
+}
+
+function registrarLogDetalhado(entidade, operacao, identificador, camposAlterados, extras) {
+  try {
+    const campos = Array.isArray(camposAlterados)
+      ? camposAlterados
+        .filter(item => item && item.campo)
+        .map(item => ({
+          campo: String(item.campo),
+          antes: item.antes === undefined ? null : item.antes,
+          depois: item.depois === undefined ? null : item.depois
+        }))
+      : [];
+
+    const payload = {
+      entidade: entidade || '',
+      operacao: operacao || '',
+      identificador: identificador || '',
+      campos,
+      extras: extras || null
+    };
+
+    const acao = `GESTAO_${String(entidade || 'ENTIDADE').toUpperCase()}_${String(operacao || 'OPERACAO').toUpperCase()}`;
+    const detalhes = `${String(entidade || 'entidade').toUpperCase()} ${String(operacao || '').toUpperCase()}${identificador ? ` (${identificador})` : ''}`;
+    registrarLog(acao, detalhes, payload);
+  } catch (error) {
+    console.error('Falha ao registrar log detalhado:', error, entidade, operacao, identificador);
+  }
+}
+
+function lerDadosCadastroBrutos() {
+  const sheet = obterSheetCadastro();
+  const ultimaLinha = sheet.getLastRow();
+  if (ultimaLinha <= 1) {
+    return {
+      especialidades: [],
+      categorias: [],
+      ilhas: [],
+      salas: [],
+      sheet,
+      linhasTotais: 0
+    };
+  }
+
+  const totalLinhas = ultimaLinha - 1;
+  const ultimaColuna = Math.max(sheet.getLastColumn(), CADASTRO_COLUMNS.SALA_ILHA);
+  const valores = sheet.getRange(2, 1, totalLinhas, ultimaColuna).getValues();
+
+  const especialidades = [];
+  const categorias = [];
+  const ilhasMap = new Map();
+  const salas = [];
+  const mapaSalasPorId = new Map();
+
+  valores.forEach((row, indice) => {
+    const rowIndex = indice + 2;
+    const especialidadeValor = row[CADASTRO_COLUMNS.ESPECIALIDADES - 1] !== undefined
+      ? String(row[CADASTRO_COLUMNS.ESPECIALIDADES - 1] || '').trim()
+      : '';
+    if (especialidadeValor) {
+      especialidades.push({
+        id: rowIndex,
+        nome: especialidadeValor,
+        chave: normalizarChaveCadastro(especialidadeValor)
+      });
+    }
+
+    const categoriaValor = row[CADASTRO_COLUMNS.CATEGORIAS - 1] !== undefined
+      ? String(row[CADASTRO_COLUMNS.CATEGORIAS - 1] || '').trim()
+      : '';
+    if (categoriaValor) {
+      categorias.push({
+        id: rowIndex,
+        nome: categoriaValor,
+        chave: normalizarChaveCadastro(categoriaValor)
+      });
+    }
+
+    const ilhaValor = row[CADASTRO_COLUMNS.ILHAS - 1] !== undefined
+      ? String(row[CADASTRO_COLUMNS.ILHAS - 1] || '').trim()
+      : '';
+    if (ilhaValor) {
+      const chaveIlha = normalizarChaveCadastro(ilhaValor);
+      if (!ilhasMap.has(chaveIlha)) {
+        ilhasMap.set(chaveIlha, {
+          id: rowIndex,
+          nome: ilhaValor,
+          chave: chaveIlha,
+          linhas: new Set([rowIndex]),
+          salas: new Set()
+        });
+      } else {
+        ilhasMap.get(chaveIlha).linhas.add(rowIndex);
+      }
+    }
+
+    const salaValor = row[CADASTRO_COLUMNS.SALAS - 1] !== undefined
+      ? String(row[CADASTRO_COLUMNS.SALAS - 1] || '').trim()
+      : '';
+    const salaIlhaValor = row[CADASTRO_COLUMNS.SALA_ILHA - 1] !== undefined
+      ? String(row[CADASTRO_COLUMNS.SALA_ILHA - 1] || '').trim()
+      : '';
+
+    if (salaValor) {
+      const chaveSala = normalizarChaveCadastro(salaValor);
+      const chaveIlhaSala = normalizarChaveCadastro(salaIlhaValor);
+      const salaInfo = {
+        id: rowIndex,
+        numero: salaValor,
+        chave: chaveSala,
+        ilha: salaIlhaValor,
+        ilhaChave: chaveIlhaSala
+      };
+      salas.push(salaInfo);
+      mapaSalasPorId.set(rowIndex, salaInfo);
+
+      if (salaIlhaValor && ilhasMap.has(chaveIlhaSala)) {
+        ilhasMap.get(chaveIlhaSala).salas.add(salaValor);
+      }
+    }
+  });
+
+  const ilhas = Array.from(ilhasMap.values()).map(ilha => ({
+    id: ilha.id,
+    nome: ilha.nome,
+    chave: ilha.chave,
+    linhas: Array.from(ilha.linhas).sort((a, b) => a - b),
+    salas: Array.from(ilha.salas).sort((a, b) => a.localeCompare(b, undefined, { numeric: true }))
+  }));
+
+  return {
+    especialidades,
+    categorias,
+    ilhas,
+    salas,
+    sheet,
+    linhasTotais: totalLinhas,
+    mapaSalasPorId
+  };
+}
+
+function construirResumoCadastros() {
+  const dados = lerDadosCadastroBrutos();
+  const timestamp = new Date().toISOString();
+
+  const ilhasDetalhadas = dados.ilhas.map(ilha => ({
+    id: ilha.id,
+    nome: ilha.nome,
+    totalSalas: ilha.salas.length,
+    salas: ilha.salas,
+    linhas: ilha.linhas,
+    duplicada: ilha.linhas.length > 1
+  })).sort((a, b) => a.nome.localeCompare(b.nome, undefined, { numeric: true, sensitivity: 'base' }));
+
+  const salasDetalhadas = dados.salas.map(sala => ({
+    id: sala.id,
+    numero: sala.numero,
+    ilha: sala.ilha,
+    ilhaChave: sala.ilhaChave
+  })).sort((a, b) => a.numero.localeCompare(b.numero, undefined, { numeric: true, sensitivity: 'base' }));
+
+  const estatisticas = {
+    totalEspecialidades: dados.especialidades.length,
+    totalCategorias: dados.categorias.length,
+    totalIlhas: ilhasDetalhadas.length,
+    totalSalas: salasDetalhadas.length,
+    ilhasSemSala: ilhasDetalhadas.filter(ilha => ilha.totalSalas === 0).length,
+    salasSemIlha: salasDetalhadas.filter(sala => !sala.ilha).length
+  };
+
+  return {
+    timestamp,
+    especialidades: dados.especialidades.map(item => ({ id: item.id, nome: item.nome })).sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR', { sensitivity: 'base' })),
+    categorias: dados.categorias.map(item => ({ id: item.id, nome: item.nome })).sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR', { sensitivity: 'base' })),
+    ilhas: ilhasDetalhadas,
+    salas: salasDetalhadas,
+    estatisticas
+  };
+}
+
+function gestaoListarCadastros() {
+  const dados = construirResumoCadastros();
+  return {
+    success: true,
+    dados,
+    timestamp: dados.timestamp
+  };
+}
+
+function salvarItemCadastroSimples(tipo, colunaIndex, payload) {
+  const entrada = payload || {};
+  const nome = String(entrada.nome || '').trim();
+  if (!nome) {
+    throw new Error(`Informe o nome da ${tipo}.`);
+  }
+  const chaveNome = normalizarChaveCadastro(nome);
+  if (!chaveNome) {
+    throw new Error(`O nome da ${tipo} informado é inválido.`);
+  }
+
+  const resultado = executarComLock('document', 20000, () => {
+    const sheet = obterSheetCadastro();
+    const ultimaLinha = sheet.getLastRow();
+    const totalLinhas = Math.max(0, ultimaLinha - 1);
+    const idInformado = parseInt(entrada.id, 10);
+    const idValido = Number.isInteger(idInformado) && idInformado >= 2 && idInformado <= ultimaLinha;
+    const linhaDestino = idValido ? idInformado : null;
+
+    const valoresExistentes = totalLinhas > 0
+      ? sheet.getRange(2, colunaIndex, totalLinhas, 1).getValues()
+      : [];
+
+    let valorAnterior = '';
+    valoresExistentes.forEach((row, indice) => {
+      const rowIndex = indice + 2;
+      const valor = String(row[0] || '').trim();
+      if (!valor) return;
+      const chave = normalizarChaveCadastro(valor);
+      if (linhaDestino && rowIndex === linhaDestino) {
+        valorAnterior = valor;
+        return;
+      }
+      if (chave === chaveNome) {
+        throw new Error(`Já existe uma ${tipo} cadastrada com este nome.`);
+      }
+    });
+
+    if (linhaDestino) {
+      const valorAtual = String(sheet.getRange(linhaDestino, colunaIndex).getValue() || '').trim();
+      if (normalizarChaveCadastro(valorAtual) === chaveNome && valorAtual === nome) {
+        return {
+          skip: true,
+          id: linhaDestino,
+          nomeAtual: valorAtual
+        };
+      }
+      sheet.getRange(linhaDestino, colunaIndex).setValue(nome);
+      return {
+        id: linhaDestino,
+        nomeAnterior: valorAnterior || valorAtual,
+        nomeAtual: nome,
+        operacao: 'update'
+      };
+    }
+
+    const novaLinha = new Array(CADASTRO_COLUMNS.SALA_ILHA).fill('');
+    novaLinha[colunaIndex - 1] = nome;
+    sheet.appendRow(novaLinha);
+    return {
+      id: sheet.getLastRow(),
+      nomeAnterior: '',
+      nomeAtual: nome,
+      operacao: 'create'
+    };
+  });
+
+  if (resultado.skip) {
+    const dados = construirResumoCadastros();
+    return {
+      success: true,
+      mensagem: 'Nenhuma alteração necessária.',
+      dados,
+      item: { id: resultado.id, nome: resultado.nomeAtual }
+    };
+  }
+
+  registrarLogDetalhado(tipo, resultado.operacao, resultado.nomeAtual, [
+    {
+      campo: 'nome',
+      antes: resultado.nomeAnterior || '',
+      depois: resultado.nomeAtual
+    }
+  ]);
+
+  const dados = construirResumoCadastros();
+  const propriedade = tipo === 'especialidade' ? 'especialidades' : 'categorias';
+  const item = dados[propriedade].find(entry => entry.id === resultado.id) || null;
+
+  return {
+    success: true,
+    dados,
+    item,
+    mensagem: resultado.operacao === 'create' ? `${tipo.charAt(0).toUpperCase() + tipo.slice(1)} adicionada com sucesso.` : `${tipo.charAt(0).toUpperCase() + tipo.slice(1)} atualizada com sucesso.`
+  };
+}
+
+function excluirItemCadastroSimples(tipo, colunaIndex, payload) {
+  const entrada = payload || {};
+  const id = parseInt(entrada.id, 10);
+  if (!Number.isInteger(id) || id < 2) {
+    throw new Error('Registro inválido para exclusão.');
+  }
+
+  const resultado = executarComLock('document', 20000, () => {
+    const sheet = obterSheetCadastro();
+    const ultimaLinha = sheet.getLastRow();
+    if (id > ultimaLinha) {
+      throw new Error('Registro não encontrado para exclusão.');
+    }
+    const valorAtual = String(sheet.getRange(id, colunaIndex).getValue() || '').trim();
+    if (!valorAtual) {
+      throw new Error('Registro já está vazio.');
+    }
+    sheet.getRange(id, colunaIndex).clearContent();
+    return {
+      valorAnterior: valorAtual
+    };
+  });
+
+  registrarLogDetalhado(tipo, 'delete', resultado.valorAnterior, [
+    {
+      campo: 'nome',
+      antes: resultado.valorAnterior,
+      depois: ''
+    }
+  ]);
+
+  const dados = construirResumoCadastros();
+  return {
+    success: true,
+    dados,
+    mensagem: `${tipo.charAt(0).toUpperCase() + tipo.slice(1)} removida com sucesso.`
+  };
+}
+
+function gestaoSalvarEspecialidade(payload) {
+  return salvarItemCadastroSimples('especialidade', CADASTRO_COLUMNS.ESPECIALIDADES, payload);
+}
+
+function gestaoExcluirEspecialidade(payload) {
+  return excluirItemCadastroSimples('especialidade', CADASTRO_COLUMNS.ESPECIALIDADES, payload);
+}
+
+function gestaoSalvarCategoria(payload) {
+  return salvarItemCadastroSimples('categoria', CADASTRO_COLUMNS.CATEGORIAS, payload);
+}
+
+function gestaoExcluirCategoria(payload) {
+  return excluirItemCadastroSimples('categoria', CADASTRO_COLUMNS.CATEGORIAS, payload);
+}
+
+function gestaoSalvarIlha(payload) {
+  const entrada = payload || {};
+  const nome = String(entrada.nome || '').trim();
+  if (!nome) {
+    throw new Error('Informe o nome da ilha.');
+  }
+  const chaveNome = normalizarChaveCadastro(nome);
+  if (!chaveNome) {
+    throw new Error('O nome da ilha informado é inválido.');
+  }
+
+  const resultado = executarComLock('document', 25000, () => {
+    const sheet = obterSheetCadastro();
+    const ultimaLinha = sheet.getLastRow();
+    const totalLinhas = Math.max(0, ultimaLinha - 1);
+    const idInformado = parseInt(entrada.id, 10);
+    const linhaDestino = Number.isInteger(idInformado) && idInformado >= 2 && idInformado <= ultimaLinha ? idInformado : null;
+
+    const valoresIlhas = totalLinhas > 0
+      ? sheet.getRange(2, CADASTRO_COLUMNS.ILHAS, totalLinhas, 1).getValues()
+      : [];
+
+    let nomeAnterior = '';
+    valoresIlhas.forEach((row, indice) => {
+      const rowIndex = indice + 2;
+      const valor = String(row[0] || '').trim();
+      if (!valor) return;
+      const chave = normalizarChaveCadastro(valor);
+      if (linhaDestino && rowIndex === linhaDestino) {
+        nomeAnterior = valor;
+        return;
+      }
+      if (chave === chaveNome) {
+        throw new Error('Já existe uma ilha cadastrada com este nome.');
+      }
+    });
+
+    if (linhaDestino) {
+      const valorAtual = String(sheet.getRange(linhaDestino, CADASTRO_COLUMNS.ILHAS).getValue() || '').trim();
+      if (normalizarChaveCadastro(valorAtual) === chaveNome && valorAtual === nome) {
+        return {
+          skip: true,
+          id: linhaDestino,
+          nomeAtual: valorAtual
+        };
+      }
+
+      sheet.getRange(linhaDestino, CADASTRO_COLUMNS.ILHAS).setValue(nome);
+
+      const totalLinhasSalas = Math.max(0, sheet.getLastRow() - 1);
+      const rangeSalas = totalLinhasSalas > 0
+        ? sheet.getRange(2, CADASTRO_COLUMNS.SALAS, totalLinhasSalas, CADASTRO_COLUMNS.SALA_ILHA - CADASTRO_COLUMNS.SALAS + 1)
+        : null;
+      const salasAtualizadas = [];
+      if (rangeSalas) {
+        const valoresSalas = rangeSalas.getValues();
+        let alterado = false;
+        const chaveAnterior = normalizarChaveCadastro(nomeAnterior || valorAtual);
+        valoresSalas.forEach((linhaSala, indiceSala) => {
+          const salaNumero = String(linhaSala[0] || '').trim();
+          const salaIlha = String(linhaSala[1] || '').trim();
+          if (salaIlha && normalizarChaveCadastro(salaIlha) === chaveAnterior) {
+            valoresSalas[indiceSala][1] = nome;
+            alterado = true;
+            if (salaNumero) {
+              salasAtualizadas.push(salaNumero);
+            }
+          }
+        });
+        if (alterado) {
+          rangeSalas.setValues(valoresSalas);
+        }
+      }
+
+      return {
+        id: linhaDestino,
+        nomeAnterior: nomeAnterior || valorAtual,
+        nomeAtual: nome,
+        operacao: 'update',
+        salasAtualizadas
+      };
+    }
+
+    const novaLinha = new Array(CADASTRO_COLUMNS.SALA_ILHA).fill('');
+    novaLinha[CADASTRO_COLUMNS.ILHAS - 1] = nome;
+    sheet.appendRow(novaLinha);
+    return {
+      id: sheet.getLastRow(),
+      nomeAnterior: '',
+      nomeAtual: nome,
+      operacao: 'create',
+      salasAtualizadas: []
+    };
+  });
+
+  if (resultado.skip) {
+    const dados = construirResumoCadastros();
+    return {
+      success: true,
+      mensagem: 'Nenhuma alteração necessária.',
+      dados,
+      item: dados.ilhas.find(ilha => ilha.id === resultado.id) || null
+    };
+  }
+
+  const extras = {};
+  if (resultado.salasAtualizadas && resultado.salasAtualizadas.length) {
+    extras.salasAtualizadas = resultado.salasAtualizadas;
+  }
+
+  registrarLogDetalhado('ilha', resultado.operacao, resultado.nomeAtual, [
+    {
+      campo: 'nome',
+      antes: resultado.nomeAnterior || '',
+      depois: resultado.nomeAtual
+    }
+  ], Object.keys(extras).length ? extras : null);
+
+  const dados = construirResumoCadastros();
+  return {
+    success: true,
+    dados,
+    item: dados.ilhas.find(ilha => ilha.id === resultado.id) || null,
+    mensagem: resultado.operacao === 'create' ? 'Ilha adicionada com sucesso.' : 'Ilha atualizada com sucesso.'
+  };
+}
+
+function gestaoExcluirIlha(payload) {
+  const entrada = payload || {};
+  const id = parseInt(entrada.id, 10);
+  if (!Number.isInteger(id) || id < 2) {
+    throw new Error('Ilha inválida para exclusão.');
+  }
+
+  const resultado = executarComLock('document', 25000, () => {
+    const sheet = obterSheetCadastro();
+    const ultimaLinha = sheet.getLastRow();
+    if (id > ultimaLinha) {
+      throw new Error('Ilha não encontrada.');
+    }
+
+    const nomeAtual = String(sheet.getRange(id, CADASTRO_COLUMNS.ILHAS).getValue() || '').trim();
+    if (!nomeAtual) {
+      throw new Error('Ilha não encontrada.');
+    }
+
+    let destinoNome = '';
+    const reassociarId = parseInt(entrada.reassociarId, 10);
+    const reassociarNome = String(entrada.reassociarNome || '').trim();
+
+    if (Number.isInteger(reassociarId) && reassociarId >= 2 && reassociarId <= ultimaLinha) {
+      destinoNome = String(sheet.getRange(reassociarId, CADASTRO_COLUMNS.ILHAS).getValue() || '').trim();
+    } else if (reassociarNome) {
+      destinoNome = reassociarNome;
+    }
+
+    const totalLinhas = Math.max(0, ultimaLinha - 1);
+    const rangeSalas = totalLinhas > 0
+      ? sheet.getRange(2, CADASTRO_COLUMNS.SALAS, totalLinhas, CADASTRO_COLUMNS.SALA_ILHA - CADASTRO_COLUMNS.SALAS + 1)
+      : null;
+    const salasAfetadas = [];
+    if (rangeSalas) {
+      const valoresSalas = rangeSalas.getValues();
+      let alterado = false;
+      const chaveOrigem = normalizarChaveCadastro(nomeAtual);
+      valoresSalas.forEach((linhaSala, indiceSala) => {
+        const salaNumero = String(linhaSala[0] || '').trim();
+        const salaIlha = String(linhaSala[1] || '').trim();
+        if (salaIlha && normalizarChaveCadastro(salaIlha) === chaveOrigem) {
+          alterado = true;
+          if (destinoNome) {
+            valoresSalas[indiceSala][1] = destinoNome;
+          } else {
+            valoresSalas[indiceSala][1] = '';
+          }
+          if (salaNumero) {
+            salasAfetadas.push(salaNumero);
+          }
+        }
+      });
+      if (alterado) {
+        rangeSalas.setValues(valoresSalas);
+      }
+    }
+
+    sheet.getRange(id, CADASTRO_COLUMNS.ILHAS).clearContent();
+
+    return {
+      nomeAnterior: nomeAtual,
+      destino: destinoNome,
+      salasAfetadas
+    };
+  });
+
+  registrarLogDetalhado('ilha', 'delete', resultado.nomeAnterior, [
+    {
+      campo: 'nome',
+      antes: resultado.nomeAnterior,
+      depois: ''
+    }
+  ], {
+    reassociadoPara: resultado.destino || null,
+    salasAfetadas: resultado.salasAfetadas
+  });
+
+  const dados = construirResumoCadastros();
+  return {
+    success: true,
+    dados,
+    mensagem: 'Ilha removida com sucesso.'
+  };
+}
+
+function gestaoSalvarSala(payload) {
+  const entrada = payload || {};
+  const numero = String(entrada.numero || '').trim();
+  if (!numero) {
+    throw new Error('Informe o identificador da sala.');
+  }
+  const chaveSala = normalizarChaveCadastro(numero);
+  if (!chaveSala) {
+    throw new Error('O identificador da sala informado é inválido.');
+  }
+
+  const resultado = executarComLock('document', 25000, () => {
+    const sheet = obterSheetCadastro();
+    const ultimaLinha = sheet.getLastRow();
+    const totalLinhas = Math.max(0, ultimaLinha - 1);
+    const idInformado = parseInt(entrada.id, 10);
+    const linhaDestino = Number.isInteger(idInformado) && idInformado >= 2 && idInformado <= ultimaLinha ? idInformado : null;
+
+    const rangeSalas = totalLinhas > 0
+      ? sheet.getRange(2, CADASTRO_COLUMNS.SALAS, totalLinhas, CADASTRO_COLUMNS.SALA_ILHA - CADASTRO_COLUMNS.SALAS + 1)
+      : null;
+    const valoresSalas = rangeSalas ? rangeSalas.getValues() : [];
+
+    let numeroAnterior = '';
+    let ilhaAnterior = '';
+    if (rangeSalas) {
+      valoresSalas.forEach((linhaSala, indiceSala) => {
+        const rowIndex = indiceSala + 2;
+        const salaNumero = String(linhaSala[0] || '').trim();
+        const salaIlha = String(linhaSala[1] || '').trim();
+        if (!salaNumero) return;
+        const chaveAtual = normalizarChaveCadastro(salaNumero);
+        if (linhaDestino && rowIndex === linhaDestino) {
+          numeroAnterior = salaNumero;
+          ilhaAnterior = salaIlha;
+          return;
+        }
+        if (chaveAtual === chaveSala) {
+          throw new Error('Já existe uma sala cadastrada com este identificador.');
+        }
+      });
+    }
+
+    let destinoNome = '';
+    const ilhaId = parseInt(entrada.ilhaId, 10);
+    const ilhaNome = String(entrada.ilhaNome || '').trim();
+    if (Number.isInteger(ilhaId) && ilhaId >= 2 && ilhaId <= ultimaLinha) {
+      destinoNome = String(sheet.getRange(ilhaId, CADASTRO_COLUMNS.ILHAS).getValue() || '').trim();
+    } else if (ilhaNome) {
+      destinoNome = ilhaNome;
+    }
+
+    if (linhaDestino) {
+      const valorAtualNumero = String(sheet.getRange(linhaDestino, CADASTRO_COLUMNS.SALAS).getValue() || '').trim();
+      const valorAtualIlha = String(sheet.getRange(linhaDestino, CADASTRO_COLUMNS.SALA_ILHA).getValue() || '').trim();
+      if (normalizarChaveCadastro(valorAtualNumero) === chaveSala && valorAtualIlha === destinoNome) {
+        return {
+          skip: true,
+          id: linhaDestino,
+          numeroAtual: valorAtualNumero,
+          ilhaAtual: valorAtualIlha
+        };
+      }
+
+      sheet.getRange(linhaDestino, CADASTRO_COLUMNS.SALAS).setValue(numero);
+      sheet.getRange(linhaDestino, CADASTRO_COLUMNS.SALA_ILHA).setValue(destinoNome);
+
+      return {
+        id: linhaDestino,
+        numeroAnterior: numeroAnterior || valorAtualNumero,
+        ilhaAnterior: ilhaAnterior || valorAtualIlha,
+        numeroAtual: numero,
+        ilhaAtual: destinoNome,
+        operacao: 'update'
+      };
+    }
+
+    const novaLinha = new Array(CADASTRO_COLUMNS.SALA_ILHA).fill('');
+    novaLinha[CADASTRO_COLUMNS.SALAS - 1] = numero;
+    novaLinha[CADASTRO_COLUMNS.SALA_ILHA - 1] = destinoNome;
+    sheet.appendRow(novaLinha);
+
+    return {
+      id: sheet.getLastRow(),
+      numeroAnterior: '',
+      ilhaAnterior: '',
+      numeroAtual: numero,
+      ilhaAtual: destinoNome,
+      operacao: 'create'
+    };
+  });
+
+  if (resultado.skip) {
+    const dados = construirResumoCadastros();
+    return {
+      success: true,
+      mensagem: 'Nenhuma alteração necessária.',
+      dados,
+      item: dados.salas.find(sala => sala.id === resultado.id) || null
+    };
+  }
+
+  registrarLogDetalhado('sala', resultado.operacao, resultado.numeroAtual, [
+    {
+      campo: 'numero',
+      antes: resultado.numeroAnterior || '',
+      depois: resultado.numeroAtual
+    },
+    {
+      campo: 'ilha',
+      antes: resultado.ilhaAnterior || '',
+      depois: resultado.ilhaAtual || ''
+    }
+  ]);
+
+  const dados = construirResumoCadastros();
+  return {
+    success: true,
+    dados,
+    item: dados.salas.find(sala => sala.id === resultado.id) || null,
+    mensagem: resultado.operacao === 'create' ? 'Sala adicionada com sucesso.' : 'Sala atualizada com sucesso.'
+  };
+}
+
+function gestaoExcluirSala(payload) {
+  const entrada = payload || {};
+  const id = parseInt(entrada.id, 10);
+  if (!Number.isInteger(id) || id < 2) {
+    throw new Error('Sala inválida para exclusão.');
+  }
+
+  const resultado = executarComLock('document', 20000, () => {
+    const sheet = obterSheetCadastro();
+    const ultimaLinha = sheet.getLastRow();
+    if (id > ultimaLinha) {
+      throw new Error('Sala não encontrada.');
+    }
+    const numeroAtual = String(sheet.getRange(id, CADASTRO_COLUMNS.SALAS).getValue() || '').trim();
+    const ilhaAtual = String(sheet.getRange(id, CADASTRO_COLUMNS.SALA_ILHA).getValue() || '').trim();
+    if (!numeroAtual) {
+      throw new Error('Sala não encontrada.');
+    }
+    sheet.getRange(id, CADASTRO_COLUMNS.SALAS, 1, 2).clearContent();
+    return {
+      numeroAnterior: numeroAtual,
+      ilhaAnterior: ilhaAtual
+    };
+  });
+
+  registrarLogDetalhado('sala', 'delete', resultado.numeroAnterior, [
+    {
+      campo: 'numero',
+      antes: resultado.numeroAnterior,
+      depois: ''
+    },
+    {
+      campo: 'ilha',
+      antes: resultado.ilhaAnterior || '',
+      depois: ''
+    }
+  ]);
+
+  const dados = construirResumoCadastros();
+  return {
+    success: true,
+    dados,
+    mensagem: 'Sala removida com sucesso.'
+  };
+}
+
+function gestaoAtualizarSalasEmLote(payload) {
+  const entrada = payload || {};
+  const salasEntrada = Array.isArray(entrada.salas) ? entrada.salas : [];
+  if (!salasEntrada.length) {
+    throw new Error('Informe as salas que devem ser atualizadas.');
+  }
+
+  const resultado = executarComLock('document', 30000, () => {
+    const sheet = obterSheetCadastro();
+    const ultimaLinha = sheet.getLastRow();
+    if (ultimaLinha <= 1) {
+      throw new Error('Não há salas cadastradas.');
+    }
+
+    const totalLinhas = ultimaLinha - 1;
+    const rangeSalas = sheet.getRange(2, CADASTRO_COLUMNS.SALAS, totalLinhas, CADASTRO_COLUMNS.SALA_ILHA - CADASTRO_COLUMNS.SALAS + 1);
+    const valoresSalas = rangeSalas.getValues();
+    const mapaPorNumero = new Map();
+    const mapaPorId = new Map();
+
+    valoresSalas.forEach((linhaSala, indiceSala) => {
+      const rowIndex = indiceSala + 2;
+      const salaNumero = String(linhaSala[0] || '').trim();
+      const salaIlha = String(linhaSala[1] || '').trim();
+      if (salaNumero) {
+        const chave = normalizarChaveCadastro(salaNumero);
+        mapaPorNumero.set(chave, { id: rowIndex, numero: salaNumero, ilha: salaIlha });
+        mapaPorId.set(rowIndex, { numero: salaNumero, ilha: salaIlha });
+      }
+    });
+
+    const linhasAtualizar = new Set();
+    salasEntrada.forEach(item => {
+      if (Number.isInteger(item) && item >= 2 && item <= ultimaLinha) {
+        linhasAtualizar.add(item);
+        return;
+      }
+      const salaNumero = String(item || '').trim();
+      if (!salaNumero) return;
+      const chave = normalizarChaveCadastro(salaNumero);
+      if (mapaPorNumero.has(chave)) {
+        linhasAtualizar.add(mapaPorNumero.get(chave).id);
+      }
+    });
+
+    if (!linhasAtualizar.size) {
+      throw new Error('Nenhuma sala válida encontrada para atualização.');
+    }
+
+    let destinoNome = '';
+    const ilhaId = parseInt(entrada.ilhaId, 10);
+    const ilhaNome = String(entrada.ilhaNome || '').trim();
+    if (Number.isInteger(ilhaId) && ilhaId >= 2 && ilhaId <= ultimaLinha) {
+      destinoNome = String(sheet.getRange(ilhaId, CADASTRO_COLUMNS.ILHAS).getValue() || '').trim();
+    } else if (ilhaNome || ilhaNome === '') {
+      destinoNome = ilhaNome;
+    }
+
+    const linhasOrdenadas = Array.from(linhasAtualizar).sort((a, b) => a - b);
+    const alteracoes = [];
+    linhasOrdenadas.forEach(rowIndex => {
+      const info = mapaPorId.get(rowIndex) || { numero: '', ilha: '' };
+      const novoValor = destinoNome || '';
+      if (info.ilha === novoValor) {
+        return;
+      }
+      sheet.getRange(rowIndex, CADASTRO_COLUMNS.SALA_ILHA).setValue(novoValor);
+      alteracoes.push({
+        id: rowIndex,
+        numero: info.numero,
+        antes: info.ilha,
+        depois: novoValor
+      });
+    });
+
+    if (!alteracoes.length) {
+      return {
+        skip: true
+      };
+    }
+
+    return {
+      alteracoes,
+      destino: destinoNome || '',
+      total: alteracoes.length
+    };
+  });
+
+  if (resultado.skip) {
+    const dados = construirResumoCadastros();
+    return {
+      success: true,
+      mensagem: 'Nenhuma alteração aplicada.',
+      dados
+    };
+  }
+
+  registrarLogDetalhado('sala', 'batch_update', `${resultado.total} salas`, resultado.alteracoes.map(alteracao => ({
+    campo: `ilha_${alteracao.numero}`,
+    antes: alteracao.antes || '',
+    depois: alteracao.depois || ''
+  })), {
+    destino: resultado.destino || '',
+    total: resultado.total
+  });
+
+  const dados = construirResumoCadastros();
+  return {
+    success: true,
+    dados,
+    mensagem: 'Salas atualizadas com sucesso.'
+  };
+}
+
+function gestaoListarHistoricoLogs(filtros) {
+  const criterios = filtros && typeof filtros === 'object' ? filtros : {};
+  const limite = Math.min(Math.max(parseInt(criterios.limite, 10) || 200, 1), 500);
+  const busca = String(criterios.busca || '').trim().toLowerCase();
+  const entidadeFiltro = normalizarChaveCadastro(criterios.entidade || '');
+  const acaoFiltro = normalizarChaveCadastro(criterios.acao || '');
+  const usuarioFiltro = normalizarChaveCadastro(criterios.usuario || '');
+
+  let inicioFiltro = null;
+  let fimFiltro = null;
+  if (criterios.periodo && typeof criterios.periodo === 'object') {
+    if (criterios.periodo.inicio) {
+      inicioFiltro = new Date(`${criterios.periodo.inicio}T00:00:00`);
+    }
+    if (criterios.periodo.fim) {
+      fimFiltro = new Date(`${criterios.periodo.fim}T23:59:59`);
+    }
+  }
+
+  const sheet = obterSheetLogs();
+  const ultimaLinha = sheet.getLastRow();
+  if (ultimaLinha <= 1) {
+    return {
+      success: true,
+      registros: [],
+      total: 0,
+      timestamp: new Date().toISOString()
+    };
+  }
+
+  const totalLinhas = ultimaLinha - 1;
+  const primeiraLinha = Math.max(2, ultimaLinha - limite + 1);
+  const quantidadeLinhas = ultimaLinha - primeiraLinha + 1;
+  const valores = sheet.getRange(primeiraLinha, 1, quantidadeLinhas, sheet.getLastColumn()).getValues();
+
+  const registros = valores.map((row, indice) => {
+    const dataValor = row[LOGS_COLUMNS.TIMESTAMP - 1];
+    const timestamp = dataValor instanceof Date ? dataValor : new Date(dataValor);
+    const usuario = String(row[LOGS_COLUMNS.USUARIO - 1] || '').trim();
+    const acao = String(row[LOGS_COLUMNS.ACAO - 1] || '').trim();
+    const detalhes = String(row[LOGS_COLUMNS.DETALHES - 1] || '').trim();
+    const dadosJson = String(row[LOGS_COLUMNS.DADOS - 1] || '').trim();
+    let dados = null;
+    try {
+      dados = dadosJson ? JSON.parse(dadosJson) : null;
+    } catch (error) {
+      dados = null;
+    }
+    const campos = Array.isArray(dados && dados.campos) ? dados.campos.map(item => ({
+      campo: item.campo,
+      antes: item.antes,
+      depois: item.depois
+    })) : [];
+    return {
+      id: primeiraLinha + indice,
+      timestamp: timestamp instanceof Date && !isNaN(timestamp.getTime()) ? timestamp.toISOString() : '',
+      usuario,
+      acao,
+      detalhes,
+      dados,
+      campos,
+      entidade: dados && dados.entidade ? dados.entidade : '',
+      operacao: dados && dados.operacao ? dados.operacao : ''
+    };
+  }).filter(item => {
+    if (!item.timestamp) return false;
+    const dataRegistro = new Date(item.timestamp);
+    if (inicioFiltro && dataRegistro < inicioFiltro) return false;
+    if (fimFiltro && dataRegistro > fimFiltro) return false;
+    if (entidadeFiltro && normalizarChaveCadastro(item.entidade) !== entidadeFiltro) return false;
+    if (acaoFiltro && normalizarChaveCadastro(item.operacao) !== acaoFiltro) return false;
+    if (usuarioFiltro && normalizarChaveCadastro(item.usuario) !== usuarioFiltro) return false;
+    if (busca) {
+      const alvo = [item.usuario, item.acao, item.detalhes, item.entidade, item.operacao]
+        .filter(Boolean)
+        .map(valor => valor.toLowerCase())
+        .join(' ');
+      if (!alvo.includes(busca)) return false;
+    }
+    return true;
+  }).sort((a, b) => b.timestamp.localeCompare(a.timestamp));
+
+  return {
+    success: true,
+    registros,
+    total: registros.length,
+    timestamp: new Date().toISOString()
+  };
 }
 
 function agendamentoCorrespondeFiltros(agendamento, filtros) {
@@ -713,8 +1681,12 @@ function getSalas() {
     const salasMap = new Map();
 
     values.forEach(row => {
-      const salaId = String(row[3]).trim(); // D
-      const ilha = String(row[4]).trim(); // E
+      const salaId = row.length >= CADASTRO_COLUMNS.SALAS
+        ? String(row[CADASTRO_COLUMNS.SALAS - 1] || '').trim()
+        : '';
+      const ilha = row.length >= CADASTRO_COLUMNS.SALA_ILHA
+        ? String(row[CADASTRO_COLUMNS.SALA_ILHA - 1] || '').trim()
+        : '';
       if (salaId) {
         salasMap.set(salaId, {numero: salaId, ilha});
       }
@@ -1070,66 +2042,17 @@ function formatarHora(hora) {
  */
 function getDadosMestres() {
   try {
-    const spreadsheet = tentarObterSpreadsheetPrincipal();
-    if (!spreadsheet) {
-      console.warn('Planilha não encontrada');
-      return getDadosMestresBasicos();
-    }
-
-    const sheet = spreadsheet.getSheetByName(SHEET_NAMES.CADASTRO);
-    if (!sheet) {
-      console.warn('Aba CADASTRO não encontrada');
-      return getDadosMestresBasicos();
-    }
-    
-    const dataRange = sheet.getDataRange();
-    const values = dataRange.getValues();
-    
-    if (values.length <= 1) {
-      console.log('Nenhum dado mestre encontrado');
-      return getDadosMestresBasicos();
-    }
-    
-    // Remover cabeçalho
-    values.shift();
-    
-    const especialidades = new Set();
-    const categorias = new Set();
-    const ilhas = new Set();
-    
-    values.forEach((row, index) => {
-      try {
-        if (row[CADASTRO_COLUMNS.ESPECIALIDADES - 1]) {
-          const esp = String(row[CADASTRO_COLUMNS.ESPECIALIDADES - 1]).trim();
-          if (esp) especialidades.add(esp);
-        }
-        
-        if (row[CADASTRO_COLUMNS.CATEGORIAS - 1]) {
-          const cat = String(row[CADASTRO_COLUMNS.CATEGORIAS - 1]).trim();
-          if (cat) categorias.add(cat);
-        }
-        
-        if (row[CADASTRO_COLUMNS.ILHAS - 1]) {
-          const ilha = String(row[CADASTRO_COLUMNS.ILHAS - 1]).trim();
-          if (ilha) ilhas.add(ilha);
-        }
-      } catch (e) {
-        console.warn(`Erro ao processar linha ${index + 2} de dados mestres:`, e);
-      }
-    });
-    
+    const resumo = construirResumoCadastros();
     const resultado = {
-      especialidades: Array.from(especialidades).sort(),
-      categorias: Array.from(categorias).sort(),
-      ilhas: Array.from(ilhas).sort()
+      especialidades: resumo.especialidades.map(item => item.nome),
+      categorias: resumo.categorias.map(item => item.nome),
+      ilhas: resumo.ilhas.map(item => item.nome)
     };
-    
     console.log('Dados mestres carregados:', {
       especialidades: resultado.especialidades.length,
       categorias: resultado.categorias.length,
       ilhas: resultado.ilhas.length
     });
-    
     return resultado;
   } catch (error) {
     console.error('Erro ao carregar dados mestres:', error);
