@@ -117,42 +117,9 @@
             </div>
             <div class="header-utilities">
                 <div class="controls">
-                    <div class="utility-icons">
-                        <button class="icon-button icon-only" id="notifications-toggle" type="button" aria-label="Abrir centro de alertas" data-skip-busy="true">
-                            <i class="fas fa-bell" aria-hidden="true"></i>
-                        </button>
-                        <div class="theme-menu-container" id="theme-menu-container">
-                            <button class="icon-button icon-only theme-toggle" id="theme-menu-toggle" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="theme-menu" aria-label="Selecionar tema" data-skip-busy="true">
-                                <i class="fas fa-sun" aria-hidden="true"></i>
-                            </button>
-                            <div class="theme-menu" id="theme-menu" role="menu" aria-label="Selecione o tema" aria-labelledby="theme-menu-toggle" hidden>
-                                <button class="theme-option" type="button" data-theme="light" role="menuitemradio" aria-checked="false" data-skip-busy="true">
-                                    <span class="theme-option-icon"><i class="fas fa-sun" aria-hidden="true"></i></span>
-                                    <span class="theme-option-content">
-                                        <span class="theme-option-title">Claro</span>
-                                        <span class="theme-option-desc">Visual padrão do sistema</span>
-                                    </span>
-                                    <span class="theme-option-check" aria-hidden="true"><i class="fas fa-check"></i></span>
-                                </button>
-                                <button class="theme-option" type="button" data-theme="dark" role="menuitemradio" aria-checked="false" data-skip-busy="true">
-                                    <span class="theme-option-icon"><i class="fas fa-moon" aria-hidden="true"></i></span>
-                                    <span class="theme-option-content">
-                                        <span class="theme-option-title">Escuro</span>
-                                        <span class="theme-option-desc">Contraste elevado para ambientes com pouca luz</span>
-                                    </span>
-                                    <span class="theme-option-check" aria-hidden="true"><i class="fas fa-check"></i></span>
-                                </button>
-                                <button class="theme-option" type="button" data-theme="rose" role="menuitemradio" aria-checked="false" data-skip-busy="true">
-                                    <span class="theme-option-icon"><i class="fas fa-seedling" aria-hidden="true"></i></span>
-                                    <span class="theme-option-content">
-                                        <span class="theme-option-title">Rosé</span>
-                                        <span class="theme-option-desc">Paleta suave com tons rosados</span>
-                                    </span>
-                                    <span class="theme-option-check" aria-hidden="true"><i class="fas fa-check"></i></span>
-                                </button>
-                            </div>
-                        </div>
-                    </div>
+                    <button class="theme-toggle" id="theme-toggle" type="button" aria-label="Alternar entre tema claro e escuro">
+                        <i class="fas fa-moon" aria-hidden="true"></i>
+                    </button>
                     <button class="icon-button schedule-toggle" id="schedule-toggle" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="schedule-controls" data-skip-busy="true">
                         <i class="fas fa-calendar-day" aria-hidden="true"></i>
                         <span class="label">Data &amp; turno</span>
