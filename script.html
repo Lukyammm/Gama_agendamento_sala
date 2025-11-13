@@ -261,7 +261,7 @@
                 dataAtual: new Date(),
                 turnoAtual: 'manha',
                 visualizacaoSimplificada: true,
-                temaAtual: 'dark'
+                temaAtual: 'light'
             },
             auth: {
                 userRole: null
@@ -945,40 +945,74 @@
             }
         }
 
+        const THEME_CONFIG = {
+            light: {
+                id: 'light',
+                label: 'Tema claro',
+                toggleIcon: 'fas fa-sun'
+            },
+            dark: {
+                id: 'dark',
+                label: 'Tema escuro',
+                toggleIcon: 'fas fa-moon'
+            },
+            rose: {
+                id: 'rose',
+                label: 'Tema rosé',
+                toggleIcon: 'fas fa-seedling'
+            }
+        };
+        const THEME_IDS = Object.keys(THEME_CONFIG);
+
         function obterTemaPreferido() {
             const salvo = localStorage.getItem('themePreference');
-            if (salvo === 'light' || salvo === 'dark') {
+            if (THEME_IDS.includes(salvo)) {
                 return salvo;
             }
-            if (window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches) {
-                return 'light';
+            if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+                return 'dark';
             }
-            return 'dark';
+            return 'light';
         }
 
         function aplicarTema(tema) {
-            const normalizado = tema === 'light' ? 'light' : 'dark';
+            const normalizado = THEME_IDS.includes(tema) ? tema : 'light';
             estado.temaAtual = normalizado;
-            document.body.classList.toggle('light-theme', normalizado === 'light');
 
-            const toggle = document.getElementById('theme-toggle');
+            const body = document.body;
+            const isLightVariant = normalizado === 'light' || normalizado === 'rose';
+            body.dataset.theme = normalizado;
+            body.classList.toggle('light-theme', isLightVariant);
+            body.classList.toggle('theme-light', normalizado === 'light');
+            body.classList.toggle('theme-dark', normalizado === 'dark');
+            body.classList.toggle('theme-rose', normalizado === 'rose');
+
+            const toggle = document.getElementById('theme-menu-toggle');
             if (toggle) {
                 const icone = toggle.querySelector('i');
                 if (icone) {
-                    icone.className = normalizado === 'light' ? 'fas fa-sun' : 'fas fa-moon';
+                    icone.className = THEME_CONFIG[normalizado].toggleIcon;
                 }
-                toggle.setAttribute('aria-label', normalizado === 'light'
-                    ? 'Ativar modo escuro'
-                    : 'Ativar modo claro');
+                toggle.setAttribute('aria-label', `Selecionar tema (atual: ${THEME_CONFIG[normalizado].label})`);
+                toggle.setAttribute('title', THEME_CONFIG[normalizado].label);
+            }
+
+            const menu = document.getElementById('theme-menu');
+            if (menu) {
+                menu.querySelectorAll('[data-theme]').forEach(option => {
+                    const ativo = option.dataset.theme === normalizado;
+                    option.classList.toggle('is-active', ativo);
+                    option.setAttribute('aria-checked', ativo ? 'true' : 'false');
+                });
             }
 
             const logoImg = document.getElementById('app-logo');
             if (logoImg) {
                 const { lightSrc, darkSrc } = logoImg.dataset;
-                if (normalizado === 'light' && lightSrc) {
-                    logoImg.src = lightSrc;
-                } else if (darkSrc) {
+                if (normalizado === 'dark' && darkSrc) {
                     logoImg.src = darkSrc;
+                } else if (lightSrc) {
+                    logoImg.src = lightSrc;
                 }
             }
 
@@ -993,12 +1027,70 @@
             const preferido = obterTemaPreferido();
             aplicarTema(preferido);
 
-            const toggle = document.getElementById('theme-toggle');
-            if (!toggle) return;
+            const toggle = document.getElementById('theme-menu-toggle');
+            const menu = document.getElementById('theme-menu');
+            if (!toggle || !menu) return;
 
-            toggle.addEventListener('click', () => {
-                const proximoTema = estado.temaAtual === 'light' ? 'dark' : 'light';
-                aplicarTema(proximoTema);
+            const options = Array.from(menu.querySelectorAll('[data-theme]'));
+            menu.setAttribute('aria-hidden', 'true');
+            const closeMenu = () => {
+                if (!menu.classList.contains('is-open')) return;
+                menu.classList.remove('is-open');
+                menu.setAttribute('hidden', '');
+                menu.setAttribute('aria-hidden', 'true');
+                toggle.setAttribute('aria-expanded', 'false');
+            };
+            const openMenu = () => {
+                if (menu.classList.contains('is-open')) return;
+                menu.classList.add('is-open');
+                menu.removeAttribute('hidden');
+                menu.setAttribute('aria-hidden', 'false');
+                toggle.setAttribute('aria-expanded', 'true');
+                const ativo = menu.querySelector('.theme-option.is-active');
+                if (ativo) {
+                    ativo.focus({ preventScroll: true });
+                }
+            };
+
+            toggle.addEventListener('click', event => {
+                event.preventDefault();
+                event.stopPropagation();
+                if (menu.classList.contains('is-open')) {
+                    closeMenu();
+                } else {
+                    openMenu();
+                }
+            });
+
+            options.forEach(option => {
+                option.addEventListener('click', event => {
+                    event.preventDefault();
+                    const temaSelecionado = option.dataset.theme;
+                    aplicarTema(temaSelecionado);
+                    closeMenu();
+                    toggle.focus({ preventScroll: true });
+                });
+            });
+
+            menu.addEventListener('focusout', event => {
+                if (!menu.classList.contains('is-open')) return;
+                const proximo = event.relatedTarget || document.activeElement;
+                if (!proximo || (!menu.contains(proximo) && !toggle.contains(proximo))) {
+                    closeMenu();
+                }
+            });
+
+            document.addEventListener('click', event => {
+                if (!menu.classList.contains('is-open')) return;
+                if (menu.contains(event.target) || toggle.contains(event.target)) return;
+                closeMenu();
+            });
+
+            document.addEventListener('keydown', event => {
+                if (event.key === 'Escape' && menu.classList.contains('is-open')) {
+                    closeMenu();
+                    toggle.focus({ preventScroll: true });
+                }
             });
         }
 
