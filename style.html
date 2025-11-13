@@ -1991,7 +1991,20 @@
       }
 
       .planejamento-col-check {
-          width: 140px;
+          width: 160px;
+      }
+
+      .planejamento-selecao {
+          display: flex;
+          align-items: center;
+          gap: 12px;
+      }
+
+      .planejamento-select-checkbox {
+          width: 18px;
+          height: 18px;
+          flex-shrink: 0;
+          accent-color: var(--primary);
       }
 
       .planejamento-quickfreq {
@@ -2000,6 +2013,10 @@
           justify-content: center;
           gap: 10px;
           width: 100%;
+      }
+
+      .planejamento-selecao .planejamento-quickfreq {
+          flex: 1;
       }
 
       .planejamento-quickfreq-btn {
@@ -5363,12 +5380,32 @@
           font-size: 0.95rem;
       }
 
+      .form-help {
+          font-size: 0.82rem;
+          color: var(--text-muted);
+      }
+
       .form-actions {
           grid-column: 1 / -1;
           display: flex;
           justify-content: flex-end;
           gap: 12px;
           margin-top: 12px;
+      }
+
+      .form-actions-split {
+          display: inline-flex;
+          align-items: center;
+          gap: 12px;
+          flex-wrap: wrap;
+      }
+
+      .form-actions-split .btn {
+          flex: none;
+      }
+
+      #cadastro-residente-salas {
+          min-height: 120px;
       }
 
       .alert {
@@ -6032,6 +6069,26 @@
           .planejamento-table th,
           .planejamento-table td {
               padding: 12px 12px;
+          }
+
+          .planejamento-selecao {
+              flex-direction: column;
+              align-items: stretch;
+              gap: 8px;
+          }
+
+          .planejamento-selecao .planejamento-quickfreq {
+              width: 100%;
+          }
+
+          .form-actions-split {
+              width: 100%;
+              flex-direction: column;
+              align-items: stretch;
+          }
+
+          .form-actions-split .btn {
+              width: 100%;
           }
       }
 

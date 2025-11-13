@@ -2087,13 +2087,103 @@ function salvarAgendamento(agendamento) {
       return { success: false, message: 'Aba BASE não encontrada' };
     }
 
-    const datasParaVerificacao = Array.isArray(agendamento.datas) && agendamento.datas.length
-      ? Array.from(new Set(agendamento.datas))
+    const usaDatasEspecificas = Array.isArray(agendamento.datas) && agendamento.datas.length;
+    const datasBase = usaDatasEspecificas
+      ? Array.from(new Set((agendamento.datas || []).filter(Boolean)))
       : [agendamento.dataInicio];
-    const agendamentosExistentes = carregarAgendamentosParaVerificacao(
-      agendamento.sala,
-      datasParaVerificacao
-    );
+
+    if (!usaDatasEspecificas && agendamento.dataFim && agendamento.dataFim !== agendamento.dataInicio) {
+      datasBase.push(agendamento.dataFim);
+    }
+
+    const datasVerificacao = datasBase.filter(Boolean);
+    if (!datasVerificacao.length) {
+      return { success: false, message: 'Nenhuma data válida informada para o agendamento.' };
+    }
+
+    const agendamentosExistentes = carregarAgendamentosParaVerificacao(null, datasVerificacao);
+
+    const salasInformadas = getSalas();
+    const salasMap = new Map();
+    salasInformadas.forEach(sala => {
+      salasMap.set(String(sala.numero).trim(), sala);
+    });
+
+    const salaPrincipal = String(agendamento.sala || '').trim();
+    if (!salaPrincipal) {
+      return { success: false, message: 'Sala principal não informada.' };
+    }
+
+    const entradas = [];
+    const salasUtilizadas = new Set();
+    const profissionalBase = agendamento.profissional || '';
+    const categoriaBase = agendamento.categoria;
+    const especialidadeBase = agendamento.especialidade;
+    const observacoesBase = agendamento.observacoes || '';
+
+    salasUtilizadas.add(salaPrincipal);
+    entradas.push({
+      sala: salaPrincipal,
+      ilha: agendamento.ilha,
+      profissional: profissionalBase,
+      categoria: categoriaBase,
+      especialidade: especialidadeBase,
+      observacoes: observacoesBase,
+      tipo: 'principal',
+      indiceResidente: 0
+    });
+
+    const residentesEntrada = Array.isArray(agendamento.residentes) ? agendamento.residentes : [];
+    let indiceResidente = 0;
+    for (const residente of residentesEntrada) {
+      if (!residente) continue;
+      const salaResid = String(residente.sala || '').trim();
+      if (!salaResid) continue;
+      if (salasUtilizadas.has(salaResid)) {
+        return { success: false, message: `Sala ${salaResid} foi informada mais de uma vez. Escolha salas distintas para os residentes.` };
+      }
+      salasUtilizadas.add(salaResid);
+      indiceResidente += 1;
+      const infoSala = salasMap.get(salaResid);
+      const ilhaResid = residente.ilha ? String(residente.ilha).trim() : (infoSala && infoSala.ilha ? String(infoSala.ilha) : agendamento.ilha);
+      entradas.push({
+        sala: salaResid,
+        ilha: ilhaResid || agendamento.ilha,
+        profissional: `${profissionalBase} + Residente ${indiceResidente}`,
+        categoria: categoriaBase,
+        especialidade: especialidadeBase,
+        observacoes: observacoesBase,
+        tipo: 'residente',
+        indiceResidente
+      });
+    }
+
+    for (const dataStr of datasVerificacao) {
+      const dataObj = new Date(`${dataStr}T12:00:00`);
+      if (isNaN(dataObj.getTime())) {
+        return { success: false, message: `Data inválida informada: ${dataStr}` };
+      }
+
+      for (const entrada of entradas) {
+        const conflito = verificarConflitos(
+          entrada.sala,
+          dataStr,
+          agendamento.horaInicio,
+          agendamento.horaFim,
+          agendamento.turno,
+          undefined,
+          agendamentosExistentes
+        );
+
+        if (conflito.conflito) {
+          const prefixo = entrada.tipo === 'residente'
+            ? `Residente ${entrada.indiceResidente}`
+            : 'Profissional principal';
+          const dataFormatada = formatarDataCurta(dataObj);
+          return { success: false, message: `${prefixo}: ${conflito.mensagem} (data ${dataFormatada})` };
+        }
+      }
+    }
 
     const resultado = executarComLock('document', 30000, () => {
       const cache = CacheService.getScriptCache();
@@ -2106,127 +2196,126 @@ function salvarAgendamento(agendamento) {
         });
       };
 
-      if (agendamento.datas && Array.isArray(agendamento.datas)) {
-        const ids = [];
-        const logsCriados = [];
+      const ids = [];
+      const logsCriados = [];
 
-        for (const dataStr of agendamento.datas) {
-          const dataValida = new Date(`${dataStr}T12:00:00`);
-          if (isNaN(dataValida.getTime())) {
-            continue;
-          }
-
-          const conflito = verificarConflitos(
-            agendamento.sala,
-            dataStr,
-            agendamento.horaInicio,
-            agendamento.horaFim,
-            agendamento.turno,
-            undefined,
-            agendamentosExistentes
-          );
-
-          if (conflito.conflito) {
-            return { sucesso: false, mensagem: conflito.mensagem + ` (na data ${dataStr})` };
-          }
-
-          const lastRow = sheet.getLastRow();
-          let nextId = 1;
-          if (lastRow > 1) {
-            const lastId = sheet.getRange(lastRow, BASE_COLUMNS.ID).getValue();
-            nextId = parseInt(lastId, 10) + 1;
-          }
-
-          const newRow = [
-            nextId,
-            agendamento.ilha,
-            agendamento.sala,
-            dataValida,
-            dataValida,
-            agendamento.turno,
-            agendamento.especialidade,
-            agendamento.profissional,
-            agendamento.categoria,
-            'ocupado',
-            agendamento.observacoes || '',
-            agendamento.horaInicio,
-            agendamento.horaFim,
-            new Date(),
-            '',
-            ''
-          ];
-
-          sheet.appendRow(newRow);
-          ids.push(nextId);
-          logsCriados.push({
-            id: nextId,
-            sala: agendamento.sala,
-            ilha: agendamento.ilha,
-            data: dataStr,
-            turno: agendamento.turno,
-            horaInicio: agendamento.horaInicio,
-            horaFim: agendamento.horaFim,
-            especialidade: agendamento.especialidade,
-            profissional: agendamento.profissional,
-            categoria: agendamento.categoria
-          });
-        }
-
-        limparCacheDados();
-
-        return { sucesso: true, ids, logs: logsCriados };
-      }
-
-      const conflito = verificarConflitos(
-        agendamento.sala,
-        agendamento.dataInicio,
-        agendamento.horaInicio,
-        agendamento.horaFim,
-        agendamento.turno,
-        undefined,
-        agendamentosExistentes
-      );
-
-      if (conflito.conflito) {
-        return { sucesso: false, mensagem: conflito.mensagem };
-      }
-
-      const lastRow = sheet.getLastRow();
       let nextId = 1;
+      const lastRow = sheet.getLastRow();
       if (lastRow > 1) {
         const lastId = sheet.getRange(lastRow, BASE_COLUMNS.ID).getValue();
         nextId = parseInt(lastId, 10) + 1;
       }
 
-      const dataInicio = new Date(`${agendamento.dataInicio}T12:00:00`);
-      const dataFim = new Date(`${agendamento.dataFim}T12:00:00`);
-      if (isNaN(dataInicio.getTime()) || isNaN(dataFim.getTime())) {
+      if (usaDatasEspecificas) {
+        for (const dataStr of datasVerificacao) {
+          const dataValida = new Date(`${dataStr}T12:00:00`);
+          if (isNaN(dataValida.getTime())) {
+            continue;
+          }
+
+          entradas.forEach(entrada => {
+            const newRow = [
+              nextId,
+              entrada.ilha,
+              entrada.sala,
+              dataValida,
+              dataValida,
+              agendamento.turno,
+              entrada.especialidade,
+              entrada.profissional,
+              entrada.categoria,
+              'ocupado',
+              entrada.observacoes || '',
+              agendamento.horaInicio,
+              agendamento.horaFim,
+              new Date(),
+              '',
+              ''
+            ];
+
+            sheet.appendRow(newRow);
+            ids.push(nextId);
+            logsCriados.push({
+              id: nextId,
+              sala: entrada.sala,
+              ilha: entrada.ilha,
+              data: dataStr,
+              turno: agendamento.turno,
+              horaInicio: agendamento.horaInicio,
+              horaFim: agendamento.horaFim,
+              especialidade: entrada.especialidade,
+              profissional: entrada.profissional,
+              categoria: entrada.categoria,
+              tipo: entrada.tipo
+            });
+            nextId += 1;
+          });
+        }
+
+        limparCacheDados();
+
+        const retorno = { sucesso: true, ids, logs: logsCriados };
+        if (ids.length === 1) {
+          retorno.id = ids[0];
+          retorno.log = logsCriados[0];
+        }
+        return retorno;
+      }
+
+      const dataInicioObj = new Date(`${agendamento.dataInicio}T12:00:00`);
+      const dataFimBase = agendamento.dataFim || agendamento.dataInicio;
+      const dataFimObj = new Date(`${dataFimBase}T12:00:00`);
+      if (isNaN(dataInicioObj.getTime()) || isNaN(dataFimObj.getTime())) {
         return { sucesso: false, mensagem: 'Datas fornecidas são inválidas' };
       }
 
-      const newRow = [
-        nextId,
-        agendamento.ilha,
-        agendamento.sala,
-        dataInicio,
-        dataFim,
-        agendamento.turno,
-        agendamento.especialidade,
-        agendamento.profissional,
-        agendamento.categoria,
-        'ocupado',
-        agendamento.observacoes || '',
-        agendamento.horaInicio,
-        agendamento.horaFim,
-        new Date(),
-        '',
-        ''
-      ];
+      entradas.forEach(entrada => {
+        const newRow = [
+          nextId,
+          entrada.ilha,
+          entrada.sala,
+          dataInicioObj,
+          dataFimObj,
+          agendamento.turno,
+          entrada.especialidade,
+          entrada.profissional,
+          entrada.categoria,
+          'ocupado',
+          entrada.observacoes || '',
+          agendamento.horaInicio,
+          agendamento.horaFim,
+          new Date(),
+          '',
+          ''
+        ];
 
-      sheet.appendRow(newRow);
+        sheet.appendRow(newRow);
+        ids.push(nextId);
+        logsCriados.push({
+          id: nextId,
+          sala: entrada.sala,
+          ilha: entrada.ilha,
+          dataInicio: agendamento.dataInicio,
+          dataFim: agendamento.dataFim,
+          turno: agendamento.turno,
+          horaInicio: agendamento.horaInicio,
+          horaFim: agendamento.horaFim,
+          especialidade: entrada.especialidade,
+          profissional: entrada.profissional,
+          categoria: entrada.categoria,
+          tipo: entrada.tipo
+        });
+        nextId += 1;
+      });
+
       limparCacheDados();
 
-      return { sucesso: true, id: nextId, log: { id: nextId, ...agendamento } };
+      const retorno = { sucesso: true, ids, logs: logsCriados };
+      if (ids.length === 1) {
+        retorno.id = ids[0];
+        retorno.log = logsCriados[0];
+      }
+      return retorno;
     });
 
     if (!resultado || resultado.sucesso === false) {

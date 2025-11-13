@@ -273,6 +273,9 @@
                                 <button class="btn btn-success admin-only" id="planejamento-adicionar" type="button">
                                     <i class="fas fa-user-plus"></i> Adicionar profissional
                                 </button>
+                                <button class="btn btn-secondary" id="planejamento-editar-selecionados" type="button" disabled>
+                                    <i class="fas fa-pen-to-square"></i> <span id="planejamento-editar-selecionados-texto">Editar selecionados</span>
+                                </button>
                                 <button class="btn btn-primary" id="planejamento-aplicar" type="button">
                                     <i class="fas fa-check-double"></i> Substituir tudo
                                 </button>
@@ -286,7 +289,7 @@
                             <table class="planejamento-table">
                                 <thead>
                                 <tr>
-                                    <th class="planejamento-col-check">IN / OUT</th>
+                                    <th class="planejamento-col-check">Selecionar / IN · OUT</th>
                                     <th>Profissional</th>
                                     <th>Especialidade</th>
                                     <th>Turno</th>
@@ -1973,6 +1976,19 @@
                             <option value="">Selecione uma ilha</option>
                         </select>
                     </div>
+                    <div class="form-group">
+                        <label for="cadastro-residente"><i class="fas fa-user-graduate"></i> Residente?</label>
+                        <select id="cadastro-residente" required>
+                            <option value="nao" selected>Não</option>
+                            <option value="sim">Sim</option>
+                        </select>
+                    </div>
+                    <div class="form-group form-full" id="cadastro-residente-salas-group" style="display: none;">
+                        <label for="cadastro-residente-salas"><i class="fas fa-door-open"></i> Salas dos residentes</label>
+                        <select id="cadastro-residente-salas" multiple>
+                        </select>
+                        <small class="form-help">Selecione uma sala para cada residente adicional.</small>
+                    </div>
                     <div class="form-group form-full">
                         <label for="cadastro-observacoes"><i class="fas fa-sticky-note"></i> Observações</label>
                         <textarea id="cadastro-observacoes" rows="3" placeholder="Adicione observações sobre este agendamento..."></textarea>
@@ -2294,6 +2310,7 @@
                 <button class="close-modal" data-skip-busy="true">&times;</button>
             </div>
             <div class="modal-body">
+                <p class="modal-subtitle" id="editar-contexto-info" style="display: none;"></p>
                 <div class="alert alert-error" id="editar-alert" style="display: none;">
                     <i class="fas fa-exclamation-triangle"></i> <span id="editar-message"></span>
                 </div>
@@ -2348,9 +2365,14 @@
                         <button type="button" class="btn btn-secondary close-modal">
                             <i class="fas fa-times"></i> Cancelar
                         </button>
-                        <button type="submit" class="btn btn-primary">
+                        <div class="form-actions-split">
+                            <button type="button" class="btn btn-success" id="editar-salvar-proximo" style="display: none;">
+                                <i class="fas fa-forward"></i> Salvar e próximo
+                            </button>
+                            <button type="submit" class="btn btn-primary">
                             <i class="fas fa-save"></i> Salvar alterações
                         </button>
+                        </div>
                     </div>
                 </form>
             </div>
