@@ -288,7 +288,8 @@
                 turno: 'manha',
                 linhas: [],
                 filtroNome: '',
-                filtroEspecialidade: ''
+                filtroEspecialidade: '',
+                selecionados: new Set()
             },
             agendamento: {
                 editarId: null
@@ -421,6 +422,7 @@
 
         const estado = {};
         let contextoRegistroRapido = null;
+        let planejamentoEdicaoFila = null;
         let gestaoConfirmacaoCallback = null;
         let gestaoConfirmacaoContexto = null;
         const drawerController = {
@@ -448,6 +450,7 @@
             planejamentoLinhas: ['planejamento', 'linhas'],
             planejamentoFiltroNome: ['planejamento', 'filtroNome'],
             planejamentoFiltroEspecialidade: ['planejamento', 'filtroEspecialidade'],
+            planejamentoSelecionados: ['planejamento', 'selecionados'],
             agendamentoEditarId: ['agendamento', 'editarId'],
             dashboardDiasEspecificos: ['dashboard', 'diasEspecificos'],
             dashboardIntervaloDias: ['dashboard', 'intervaloDias'],
@@ -2731,6 +2734,10 @@
                         const salvarBtn = document.querySelector('#form-planejamento-inserir button[type="submit"]');
                         if (salvarBtn) salvarBtn.disabled = false;
                         modal.style.display = 'none';
+                    } else if (modal.id === 'editar-modal') {
+                        modal.style.display = 'none';
+                        planejamentoEdicaoFila = null;
+                        atualizarEditarModalContexto();
                     } else {
                         modal.style.display = 'none';
                     }
@@ -2751,6 +2758,17 @@
             if (planejamentoAdicionarBtn) {
                 planejamentoAdicionarBtn.addEventListener('click', function() {
                     abrirModalPlanejamentoInserir();
+                });
+            }
+
+            const planejamentoEditarSelecionadosBtn = document.getElementById('planejamento-editar-selecionados');
+            if (planejamentoEditarSelecionadosBtn) {
+                planejamentoEditarSelecionadosBtn.addEventListener('click', function() {
+                    const selecionados = Array.from(obterPlanejamentoSelecionadosSet());
+                    if (!selecionados.length) {
+                        return;
+                    }
+                    iniciarPlanejamentoEdicao(selecionados);
                 });
             }
 
@@ -3432,9 +3450,23 @@
             if (formEditar) {
                 formEditar.addEventListener('submit', function(e) {
                     e.preventDefault();
-                    salvarEdicaoAgendamento();
+                    salvarEdicaoAgendamento({ continuar: false });
                 });
             }
+
+            const salvarEditarProximoBtn = document.getElementById('editar-salvar-proximo');
+            if (salvarEditarProximoBtn) {
+                salvarEditarProximoBtn.addEventListener('click', function() {
+                    salvarEdicaoAgendamento({ continuar: true });
+                });
+            }
+
+            const cadastroResidenteSelect = document.getElementById('cadastro-residente');
+            if (cadastroResidenteSelect) {
+                cadastroResidenteSelect.addEventListener('change', atualizarCamposResidenteCadastro);
+            }
+
+            atualizarPlanejamentoSelecaoUI();
 
             inicializarDashboardDiasEspecificos();
             inicializarDashboardPeriodoDetalhes();
@@ -3829,6 +3861,109 @@
             }
         }
 
+        function obterPlanejamentoSelecionadosSet() {
+            const selecionadosAtual = estado.planejamentoSelecionados;
+            if (selecionadosAtual instanceof Set) {
+                return selecionadosAtual;
+            }
+            if (Array.isArray(selecionadosAtual)) {
+                const novoSet = new Set(selecionadosAtual.map(id => String(id)));
+                estado.planejamentoSelecionados = novoSet;
+                return novoSet;
+            }
+            const novoSet = new Set();
+            estado.planejamentoSelecionados = novoSet;
+            return novoSet;
+        }
+
+        function limparPlanejamentoSelecao() {
+            const selecionados = obterPlanejamentoSelecionadosSet();
+            if (selecionados && typeof selecionados.clear === 'function') {
+                selecionados.clear();
+            }
+        }
+
+        function atualizarPlanejamentoSelecaoUI() {
+            const selecionados = obterPlanejamentoSelecionadosSet();
+            const quantidade = selecionados ? selecionados.size : 0;
+            const btnEditarSelecionados = document.getElementById('planejamento-editar-selecionados');
+            const textoBtn = document.getElementById('planejamento-editar-selecionados-texto');
+            if (btnEditarSelecionados) {
+                btnEditarSelecionados.disabled = quantidade === 0;
+                btnEditarSelecionados.setAttribute('aria-disabled', quantidade === 0 ? 'true' : 'false');
+            }
+            if (textoBtn) {
+                textoBtn.textContent = quantidade > 0
+                    ? `Editar selecionados (${quantidade})`
+                    : 'Editar selecionados';
+            }
+        }
+
+        function togglePlanejamentoSelecao(id, selecionado) {
+            const selecionados = obterPlanejamentoSelecionadosSet();
+            const chave = String(id);
+            if (selecionado) {
+                selecionados.add(chave);
+            } else {
+                selecionados.delete(chave);
+            }
+            atualizarPlanejamentoSelecaoUI();
+        }
+
+        function iniciarPlanejamentoEdicao(ids) {
+            const lista = Array.isArray(ids) ? ids : [];
+            const vistos = new Set();
+            const fila = [];
+            lista.forEach(id => {
+                const chave = String(id);
+                if (!chave) return;
+                if (vistos.has(chave)) return;
+                vistos.add(chave);
+                fila.push(chave);
+            });
+            if (!fila.length) {
+                return;
+            }
+            planejamentoEdicaoFila = {
+                ids: fila,
+                index: 0
+            };
+            abrirModalEditar(fila[0], { origem: 'planejamento', indiceFila: 0 });
+        }
+
+        function atualizarEditarModalContexto() {
+            const info = document.getElementById('editar-contexto-info');
+            const btnProximo = document.getElementById('editar-salvar-proximo');
+            if (!info && !btnProximo) {
+                return;
+            }
+            const ativo = planejamentoEdicaoFila && Array.isArray(planejamentoEdicaoFila.ids)
+                && planejamentoEdicaoFila.ids.length > 0;
+            const total = ativo ? planejamentoEdicaoFila.ids.length : 0;
+            const indiceAtual = ativo ? (planejamentoEdicaoFila.index || 0) : 0;
+            if (info) {
+                if (ativo) {
+                    const texto = total > 1
+                        ? `Editando planejamento ${indiceAtual + 1} de ${total}`
+                        : 'Editando planejamento';
+                    info.textContent = texto;
+                    info.style.display = 'block';
+                } else {
+                    info.textContent = '';
+                    info.style.display = 'none';
+                }
+            }
+            if (btnProximo) {
+                if (ativo && total > 1) {
+                    btnProximo.style.display = 'inline-flex';
+                    btnProximo.disabled = indiceAtual >= total - 1;
+                } else {
+                    btnProximo.style.display = 'none';
+                    btnProximo.disabled = true;
+                }
+            }
+        }
+
         function atualizarPlanejamento() {
             const container = document.getElementById('planejamento-container');
             if (!container) return;
@@ -3887,6 +4022,16 @@
                     mensagem: ''
                 };
             });
+
+            const selecionados = obterPlanejamentoSelecionadosSet();
+            if (selecionados && selecionados.size) {
+                const idsValidos = new Set(estado.planejamentoLinhas.map(item => item.id));
+                Array.from(selecionados).forEach(id => {
+                    if (!idsValidos.has(id)) {
+                        selecionados.delete(id);
+                    }
+                });
+            }
 
             renderPlanejamento();
         }
@@ -3975,6 +4120,7 @@
             }
 
             const linhas = Array.isArray(estado.planejamentoLinhas) ? estado.planejamentoLinhas : [];
+            const selecionadosSet = obterPlanejamentoSelecionadosSet();
             const especialidadeMap = new Map();
             linhas.forEach(item => {
                 const especialidadeBruta = item.especialidade || '';
@@ -4029,6 +4175,7 @@
                     feedback.textContent = 'Carregando planejamento atualizado...';
                     feedback.style.color = 'var(--text-muted)';
                 }
+                atualizarPlanejamentoSelecaoUI();
                 return;
             }
 
@@ -4047,6 +4194,7 @@
                     feedback.textContent = 'Informe as salas desejadas e utilize as ações para aplicar as alterações.';
                     feedback.style.color = 'var(--text-secondary)';
                 }
+                atualizarPlanejamentoSelecaoUI();
                 return;
             }
 
@@ -4056,6 +4204,7 @@
                     feedback.textContent = 'Ajuste os filtros de busca para visualizar o planejamento.';
                     feedback.style.color = 'var(--warning)';
                 }
+                atualizarPlanejamentoSelecaoUI();
                 return;
             }
 
@@ -4105,6 +4254,19 @@
 
                     const tdCheck = document.createElement('td');
                     tdCheck.className = 'planejamento-col-check';
+                    const selecaoWrapper = document.createElement('div');
+                    selecaoWrapper.className = 'planejamento-selecao';
+
+                    const checkbox = document.createElement('input');
+                    checkbox.type = 'checkbox';
+                    checkbox.className = 'planejamento-select-checkbox';
+                    checkbox.dataset.planejamentoId = item.id;
+                    checkbox.checked = selecionadosSet.has(item.id);
+                    checkbox.setAttribute('aria-label', `Selecionar ${item.profissional || 'profissional'} para edição`);
+                    checkbox.addEventListener('change', () => {
+                        togglePlanejamentoSelecao(item.id, checkbox.checked);
+                    });
+
                     const quickWrapper = document.createElement('div');
                     quickWrapper.className = 'planejamento-quickfreq';
 
@@ -4130,7 +4292,9 @@
 
                     quickWrapper.appendChild(botaoEntradaRapida);
                     quickWrapper.appendChild(botaoSaidaRapida);
-                    tdCheck.appendChild(quickWrapper);
+                    selecaoWrapper.appendChild(checkbox);
+                    selecaoWrapper.appendChild(quickWrapper);
+                    tdCheck.appendChild(selecaoWrapper);
 
                     const tdProfissional = document.createElement('td');
                     tdProfissional.textContent = item.profissional;
@@ -4184,6 +4348,15 @@
                     const containerBotoes = document.createElement('div');
                     containerBotoes.className = 'planejamento-acoes-botoes';
 
+                    const botaoEditar = document.createElement('button');
+                    botaoEditar.type = 'button';
+                    botaoEditar.className = 'btn btn-secondary';
+                    botaoEditar.dataset.planejamentoId = item.id;
+                    botaoEditar.innerHTML = '<i class="fas fa-pen"></i> Editar';
+                    botaoEditar.setAttribute('title', 'Editar agendamento');
+                    botaoEditar.setAttribute('aria-label', 'Editar agendamento do planejamento');
+                    botaoEditar.addEventListener('click', () => iniciarPlanejamentoEdicao([item.id]));
+
                     const botaoFrequencia = document.createElement('button');
                     botaoFrequencia.type = 'button';
                     botaoFrequencia.className = 'btn btn-secondary';
@@ -4209,6 +4382,7 @@
                     botaoExcluir.setAttribute('aria-label', 'Excluir linha do planejamento');
                     botaoExcluir.addEventListener('click', () => excluirPlanejamentoLinha(item.id));
 
+                    containerBotoes.appendChild(botaoEditar);
                     containerBotoes.appendChild(botaoFrequencia);
                     containerBotoes.appendChild(botaoAcao);
                     containerBotoes.appendChild(botaoExcluir);
@@ -4237,6 +4411,8 @@
             });
 
             tbody.appendChild(fragment);
+
+            atualizarPlanejamentoSelecaoUI();
 
             if (feedback) {
                 const divergentes = linhasFiltradas.filter(item => item.resultado === 'erro');
@@ -6144,11 +6320,28 @@
             }
         }
 
-        function abrirModalEditar(agendamentoId) {
+        function abrirModalEditar(agendamentoId, opcoes = {}) {
             const ag = estado.agendamentos.find(ag => String(ag.id) === String(agendamentoId));
             if (!ag) {
                 alert('Agendamento não encontrado.');
                 return;
+            }
+
+            const origemPlanejamento = opcoes && opcoes.origem === 'planejamento';
+            if (!origemPlanejamento) {
+                planejamentoEdicaoFila = null;
+            } else {
+                if (!planejamentoEdicaoFila || !Array.isArray(planejamentoEdicaoFila.ids)) {
+                    planejamentoEdicaoFila = {
+                        ids: [String(agendamentoId)],
+                        index: 0
+                    };
+                }
+                if (typeof opcoes.indiceFila === 'number') {
+                    planejamentoEdicaoFila.index = opcoes.indiceFila;
+                } else if (!Number.isFinite(planejamentoEdicaoFila.index)) {
+                    planejamentoEdicaoFila.index = 0;
+                }
             }
 
             preencherOpcoesEditar(ag);
@@ -6192,13 +6385,16 @@
             if (alerta) alerta.style.display = 'none';
 
             document.getElementById('editar-modal').style.display = 'flex';
+            atualizarEditarModalContexto();
         }
 
-        function salvarEdicaoAgendamento() {
+        function salvarEdicaoAgendamento(opcoes = {}) {
             if (!estado.agendamentoEditarId) {
                 mostrarEditarAlerta('Nenhum agendamento selecionado para edição.');
                 return;
             }
+
+            const continuar = opcoes.continuar === true;
 
             const sala = document.getElementById('editar-sala').value;
             const profissional = document.getElementById('editar-profissional').value.trim();
@@ -6288,10 +6484,39 @@
                 tentativas: 1,
                 onSuccess(result) {
                     if (result && result.success) {
-                        alert('Agendamento atualizado com sucesso!');
+                        const planejamentoAtivo = Boolean(
+                            planejamentoEdicaoFila && Array.isArray(planejamentoEdicaoFila.ids) && planejamentoEdicaoFila.ids.length
+                        );
+
+                        if (planejamentoAtivo) {
+                            mostrarPlanejamentoMensagem(result.message || 'Agendamento atualizado com sucesso!', true);
+                        } else {
+                            alert(result.message || 'Agendamento atualizado com sucesso!');
+                        }
+
+                        const proximoDisponivel = planejamentoAtivo
+                            && planejamentoEdicaoFila.index < planejamentoEdicaoFila.ids.length - 1;
+
+                        if (planejamentoAtivo && continuar && proximoDisponivel) {
+                            planejamentoEdicaoFila.index += 1;
+                            const proximoId = planejamentoEdicaoFila.ids[planejamentoEdicaoFila.index];
+                            estado.agendamentoEditarId = null;
+                            const alerta = document.getElementById('editar-alert');
+                            if (alerta) alerta.style.display = 'none';
+                            abrirModalEditar(proximoId, { origem: 'planejamento', indiceFila: planejamentoEdicaoFila.index });
+                            carregarDados({ forcarAtualizacao: true });
+                            return;
+                        }
+
                         estado.agendamentoEditarId = null;
                         document.getElementById('editar-modal').style.display = 'none';
+                        planejamentoEdicaoFila = null;
+                        atualizarEditarModalContexto();
                         carregarDados();
+                        if (planejamentoAtivo) {
+                            limparPlanejamentoSelecao();
+                            atualizarPlanejamentoSelecaoUI();
+                        }
                     } else {
                         mostrarEditarAlerta(result?.message || 'Não foi possível atualizar o agendamento.');
                     }
@@ -6324,6 +6549,41 @@
             setTimeout(() => alerta.style.display = 'none', 5000);
         }
 
+        function preencherSalasResidenteCadastro() {
+            const select = document.getElementById('cadastro-residente-salas');
+            if (!select) return;
+
+            select.innerHTML = '';
+
+            const salasDisponiveis = (Array.isArray(estado.salas) ? [...estado.salas] : [])
+                .filter(sala => !statusBloqueiaAgendamento(sala.statusNormalizado || sala.statusGeral || sala.status))
+                .sort((a, b) => ordenarAlphaNumerico(a.numero, b.numero));
+
+            salasDisponiveis.forEach(sala => {
+                const option = document.createElement('option');
+                option.value = sala.numero;
+                const ilhaLabel = sala.ilha ? ` - Ilha ${sala.ilha}` : '';
+                option.textContent = `Sala ${sala.numero}${ilhaLabel}`;
+                select.appendChild(option);
+            });
+        }
+
+        function atualizarCamposResidenteCadastro() {
+            const selectModo = document.getElementById('cadastro-residente');
+            const grupoSalas = document.getElementById('cadastro-residente-salas-group');
+            if (!selectModo || !grupoSalas) return;
+
+            const ativo = (selectModo.value || 'nao') === 'sim';
+            grupoSalas.style.display = ativo ? 'flex' : 'none';
+
+            if (!ativo) {
+                const selectSalas = document.getElementById('cadastro-residente-salas');
+                if (selectSalas) {
+                    Array.from(selectSalas.options).forEach(opt => opt.selected = false);
+                }
+            }
+        }
+
         function abrirModalCadastro() {
             // Preencher opções de sala
             const selectSala = document.getElementById('cadastro-sala');
@@ -6337,6 +6597,18 @@
                     selectSala.appendChild(option);
                 }
             });
+
+            preencherSalasResidenteCadastro();
+
+            const cadastroResidenteSelect = document.getElementById('cadastro-residente');
+            if (cadastroResidenteSelect) {
+                cadastroResidenteSelect.value = 'nao';
+            }
+            const cadastroResidenteSalas = document.getElementById('cadastro-residente-salas');
+            if (cadastroResidenteSalas) {
+                Array.from(cadastroResidenteSalas.options).forEach(opt => opt.selected = false);
+            }
+            atualizarCamposResidenteCadastro();
             
             // Definir data atual como padrão
             const hoje = new Date().toISOString().split('T')[0];
@@ -6369,7 +6641,7 @@
             
             // Esconder alerta
             esconderAlerta();
-            
+
             // Exibir modal
             document.getElementById('cadastro-modal').style.display = 'flex';
         }
@@ -6416,18 +6688,18 @@
                 observacoes: document.getElementById('cadastro-observacoes').value,
                 status: 'ocupado'
             };
-            
+
             // Validar dados base
-            if (!formDataBase.sala || !formDataBase.turno || !formDataBase.horaInicio || !formDataBase.horaFim || 
+            if (!formDataBase.sala || !formDataBase.turno || !formDataBase.horaInicio || !formDataBase.horaFim ||
                 !formDataBase.especialidade || !formDataBase.profissional || !formDataBase.categoria || !formDataBase.ilha) {
                 alert('Por favor, preencha todos os campos obrigatórios.');
                 return;
             }
-            
+
             const dataInicioStr = document.getElementById('cadastro-data-inicio').value;
             const dataFimStr = document.getElementById('cadastro-data-fim').value;
             const usarDiasEspecificos = document.getElementById('agendar-dias-especificos').checked;
-            
+
             let datas = [];
             if (usarDiasEspecificos) {
                 const diasSelecionados = Array.from(document.querySelectorAll('.dia-semana:checked')).map(cb => parseInt(cb.value));
@@ -6435,7 +6707,7 @@
                     alert('Selecione pelo menos um dia da semana.');
                     return;
                 }
-                
+
                 let currentDate = new Date(dataInicioStr);
                 const endDate = new Date(dataFimStr);
                 while (currentDate <= endDate) {
@@ -6447,27 +6719,97 @@
             } else {
                 datas = null; // Para modo contínuo
             }
-            
+
             if (usarDiasEspecificos && datas.length === 0) {
                 alert('Nenhuma data válida para agendamento.');
                 return;
             }
-            
-            // Verificar conflitos para a data inicial ou todas se específico
-            const conflito = verificarConflitoHorario(formDataBase.sala, dataInicioStr, formDataBase.horaInicio, formDataBase.horaFim, formDataBase.turno);
-            if (conflito) {
-                mostrarAlerta(`Conflito de horário na data inicial: ${conflito.profissional} das ${conflito.horaInicio} às ${conflito.horaFim}`);
-                return;
+
+            const datasParaVerificar = usarDiasEspecificos ? [...datas] : [dataInicioStr];
+            if (!usarDiasEspecificos && dataFimStr && dataFimStr !== dataInicioStr) {
+                datasParaVerificar.push(dataFimStr);
             }
-            
+            const datasValidas = datasParaVerificar.filter(Boolean);
+
+            const formatarDataResumo = dataIso => {
+                try {
+                    if (!dataIso) return '';
+                    const data = new Date(`${dataIso}T12:00:00`);
+                    if (isNaN(data.getTime())) return dataIso;
+                    return data.toLocaleDateString('pt-BR');
+                } catch (erro) {
+                    return dataIso;
+                }
+            };
+
+            const residenteSelect = document.getElementById('cadastro-residente');
+            const desejaResidente = residenteSelect && residenteSelect.value === 'sim';
+            let residentes = [];
+
+            if (desejaResidente) {
+                const selectResidenteSalas = document.getElementById('cadastro-residente-salas');
+                const selecionadas = selectResidenteSalas
+                    ? Array.from(selectResidenteSalas.selectedOptions).map(opt => String(opt.value).trim()).filter(Boolean)
+                    : [];
+
+                const salasUnicas = [];
+                const setSalas = new Set();
+                selecionadas.forEach(salaNumero => {
+                    if (!setSalas.has(salaNumero)) {
+                        setSalas.add(salaNumero);
+                        salasUnicas.push(salaNumero);
+                    }
+                });
+
+                if (!salasUnicas.length) {
+                    alert('Selecione ao menos uma sala para os residentes ou escolha "Não" na opção Residente.');
+                    return;
+                }
+
+                if (salasUnicas.includes(formDataBase.sala)) {
+                    alert('A sala principal não pode ser reutilizada para residentes. Escolha salas diferentes.');
+                    return;
+                }
+
+                const salasInfo = Array.isArray(estado.salas) ? estado.salas : [];
+                residentes = salasUnicas.map((salaNumero, index) => {
+                    const info = salasInfo.find(s => String(s.numero) === salaNumero) || {};
+                    return {
+                        sala: salaNumero,
+                        ilha: info.ilha || formDataBase.ilha,
+                        indice: index + 1
+                    };
+                });
+            }
+
+            // Verificar conflitos para a data inicial ou todas se específico
+            for (const dataVerificar of datasValidas) {
+                const conflitoBase = verificarConflitoHorario(formDataBase.sala, dataVerificar, formDataBase.horaInicio, formDataBase.horaFim, formDataBase.turno);
+                if (conflitoBase) {
+                    mostrarAlerta(`Conflito na sala ${formDataBase.sala} em ${formatarDataResumo(dataVerificar)}: ${conflitoBase.profissional} das ${conflitoBase.horaInicio} às ${conflitoBase.horaFim}`);
+                    return;
+                }
+            }
+
+            for (const residente of residentes) {
+                for (const dataVerificar of datasValidas) {
+                    const conflitoResidente = verificarConflitoHorario(residente.sala, dataVerificar, formDataBase.horaInicio, formDataBase.horaFim, formDataBase.turno);
+                    if (conflitoResidente) {
+                        mostrarAlerta(`Conflito para Residente ${residente.indice} na sala ${residente.sala} em ${formatarDataResumo(dataVerificar)}: ${conflitoResidente.profissional} das ${conflitoResidente.horaInicio} às ${conflitoResidente.horaFim}`);
+                        return;
+                    }
+                }
+            }
+
             // Salvar no Google Sheets - enviar array de datas se específico
             const payload = {
                 ...formDataBase,
                 datas: usarDiasEspecificos ? datas : null,
                 dataInicio: usarDiasEspecificos ? null : dataInicioStr,
-                dataFim: usarDiasEspecificos ? null : dataFimStr
+                dataFim: usarDiasEspecificos ? null : dataFimStr,
+                residentes: residentes.length ? residentes.map(res => ({ sala: res.sala, ilha: res.ilha })) : null
             };
-            
+
             executarGoogleScript({
                 funcao: 'salvarAgendamento',
                 parametros: [payload],
