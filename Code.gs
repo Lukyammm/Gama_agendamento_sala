@@ -2206,6 +2206,35 @@ function salvarAgendamento(agendamento) {
         nextId = parseInt(lastId, 10) + 1;
       }
 
+      const agendamentosAtualizados = carregarAgendamentosParaVerificacao(null, datasVerificacao);
+
+      for (const dataStr of datasVerificacao) {
+        const dataValida = new Date(`${dataStr}T12:00:00`);
+        if (isNaN(dataValida.getTime())) {
+          continue;
+        }
+
+        for (const entrada of entradas) {
+          const conflito = verificarConflitos(
+            entrada.sala,
+            dataStr,
+            agendamento.horaInicio,
+            agendamento.horaFim,
+            agendamento.turno,
+            undefined,
+            agendamentosAtualizados
+          );
+
+          if (conflito.conflito) {
+            const prefixo = entrada.tipo === 'residente'
+              ? `Residente ${entrada.indiceResidente}`
+              : 'Profissional principal';
+            const dataFormatada = formatarDataCurta(dataValida);
+            return { sucesso: false, mensagem: `${prefixo}: ${conflito.mensagem} (data ${dataFormatada})` };
+          }
+        }
+      }
+
       if (usaDatasEspecificas) {
         for (const dataStr of datasVerificacao) {
           const dataValida = new Date(`${dataStr}T12:00:00`);
