@@ -2207,6 +2207,30 @@ function salvarAgendamento(agendamento) {
       }
 
       const agendamentosAtualizados = carregarAgendamentosParaVerificacao(null, datasVerificacao);
+      const tzPadrao = obterTimeZonePadrao();
+
+      const registrarAgendamentoEmMemoria = (dataIso, entradaDados, idGerado) => {
+        if (!dataIso || !entradaDados || !agendamentosAtualizados) {
+          return;
+        }
+
+        if (!agendamentosAtualizados[dataIso]) {
+          agendamentosAtualizados[dataIso] = [];
+        }
+
+        agendamentosAtualizados[dataIso].push({
+          id: idGerado,
+          sala: entradaDados.sala,
+          ilha: entradaDados.ilha,
+          turno: agendamento.turno,
+          horaInicio: agendamento.horaInicio,
+          horaFim: agendamento.horaFim,
+          especialidade: entradaDados.especialidade,
+          profissional: entradaDados.profissional,
+          categoria: entradaDados.categoria,
+          dia: dataIso
+        });
+      };
 
       for (const dataStr of datasVerificacao) {
         const dataValida = new Date(`${dataStr}T12:00:00`);
@@ -2242,9 +2266,30 @@ function salvarAgendamento(agendamento) {
             continue;
           }
 
-          entradas.forEach(entrada => {
+          const dataIso = Utilities.formatDate(dataValida, tzPadrao, 'yyyy-MM-dd');
+
+          for (const entrada of entradas) {
+            const conflitoDuranteLock = verificarConflitos(
+              entrada.sala,
+              dataIso,
+              agendamento.horaInicio,
+              agendamento.horaFim,
+              agendamento.turno,
+              undefined,
+              agendamentosAtualizados
+            );
+
+            if (conflitoDuranteLock.conflito) {
+              const prefixo = entrada.tipo === 'residente'
+                ? `Residente ${entrada.indiceResidente}`
+                : 'Profissional principal';
+              const dataFormatada = formatarDataCurta(dataValida);
+              return { sucesso: false, mensagem: `${prefixo}: ${conflitoDuranteLock.mensagem} (data ${dataFormatada})` };
+            }
+
+            const idAtual = nextId;
             const newRow = [
-              nextId,
+              idAtual,
               entrada.ilha,
               entrada.sala,
               dataValida,
@@ -2263,9 +2308,9 @@ function salvarAgendamento(agendamento) {
             ];
 
             sheet.appendRow(newRow);
-            ids.push(nextId);
+            ids.push(idAtual);
             logsCriados.push({
-              id: nextId,
+              id: idAtual,
               sala: entrada.sala,
               ilha: entrada.ilha,
               data: dataStr,
@@ -2277,8 +2322,9 @@ function salvarAgendamento(agendamento) {
               categoria: entrada.categoria,
               tipo: entrada.tipo
             });
+            registrarAgendamentoEmMemoria(dataIso, entrada, idAtual);
             nextId += 1;
-          });
+          }
         }
 
         limparCacheDados();
@@ -2298,9 +2344,44 @@ function salvarAgendamento(agendamento) {
         return { sucesso: false, mensagem: 'Datas fornecidas são inválidas' };
       }
 
-      entradas.forEach(entrada => {
+      const datasPeriodo = [];
+      const cursor = new Date(dataInicioObj.getTime());
+      cursor.setHours(12, 0, 0, 0);
+      const fimCursor = new Date(dataFimObj.getTime());
+      fimCursor.setHours(12, 0, 0, 0);
+
+      while (cursor.getTime() <= fimCursor.getTime()) {
+        datasPeriodo.push({
+          iso: Utilities.formatDate(cursor, tzPadrao, 'yyyy-MM-dd'),
+          data: new Date(cursor.getTime())
+        });
+        cursor.setDate(cursor.getDate() + 1);
+      }
+
+      for (const entrada of entradas) {
+        for (const { iso, data } of datasPeriodo) {
+          const conflitoDuranteLock = verificarConflitos(
+            entrada.sala,
+            iso,
+            agendamento.horaInicio,
+            agendamento.horaFim,
+            agendamento.turno,
+            undefined,
+            agendamentosAtualizados
+          );
+
+          if (conflitoDuranteLock.conflito) {
+            const prefixo = entrada.tipo === 'residente'
+              ? `Residente ${entrada.indiceResidente}`
+              : 'Profissional principal';
+            const dataFormatada = formatarDataCurta(data);
+            return { sucesso: false, mensagem: `${prefixo}: ${conflitoDuranteLock.mensagem} (data ${dataFormatada})` };
+          }
+        }
+
+        const idAtual = nextId;
         const newRow = [
-          nextId,
+          idAtual,
           entrada.ilha,
           entrada.sala,
           dataInicioObj,
@@ -2319,9 +2400,9 @@ function salvarAgendamento(agendamento) {
         ];
 
         sheet.appendRow(newRow);
-        ids.push(nextId);
+        ids.push(idAtual);
         logsCriados.push({
-          id: nextId,
+          id: idAtual,
           sala: entrada.sala,
           ilha: entrada.ilha,
           dataInicio: agendamento.dataInicio,
@@ -2334,8 +2415,9 @@ function salvarAgendamento(agendamento) {
           categoria: entrada.categoria,
           tipo: entrada.tipo
         });
+        datasPeriodo.forEach(({ iso }) => registrarAgendamentoEmMemoria(iso, entrada, idAtual));
         nextId += 1;
-      });
+      }
 
       limparCacheDados();
 
