@@ -1854,7 +1854,7 @@ function reconstruirAgendamentosPeriodo(dados) {
   };
 }
 
-function obterAgendamentosPeriodoAgrupado(inicioEntrada, fimEntrada) {
+function obterAgendamentosPeriodoAgrupado(inicioEntrada, fimEntrada, opcoes) {
   const intervalo = normalizarIntervaloDias(inicioEntrada, fimEntrada);
   if (!intervalo) {
     return { dias: {}, ordemDias: [] };
@@ -1864,7 +1864,8 @@ function obterAgendamentosPeriodoAgrupado(inicioEntrada, fimEntrada) {
   const tz = obterTimeZonePadrao();
   const cacheKey = `agpd:${Utilities.formatDate(inicio, tz, 'yyyyMMdd')}:${Utilities.formatDate(fim, tz, 'yyyyMMdd')}`;
   const cache = CacheService.getScriptCache();
-  const cached = cache.get(cacheKey);
+  const ignorarCache = opcoes && opcoes.ignorarCache;
+  const cached = (!ignorarCache && cache) ? cache.get(cacheKey) : null;
 
   if (cached) {
     try {
@@ -1941,11 +1942,13 @@ function obterAgendamentosPeriodoAgrupado(inicioEntrada, fimEntrada) {
     ordemDias: Array.from(diasSet).sort()
   };
 
-  try {
-    cache.put(cacheKey, JSON.stringify(resultado), CACHE_DURATION);
-    registrarCacheKey(cacheKey);
-  } catch (erroCache) {
-    console.warn('Não foi possível armazenar agendamentos agregados no cache:', erroCache);
+  if (!ignorarCache && cache) {
+    try {
+      cache.put(cacheKey, JSON.stringify(resultado), CACHE_DURATION);
+      registrarCacheKey(cacheKey);
+    } catch (erroCache) {
+      console.warn('Não foi possível armazenar agendamentos agregados no cache:', erroCache);
+    }
   }
 
   return reconstruirAgendamentosPeriodo(resultado);
@@ -2206,7 +2209,7 @@ function salvarAgendamento(agendamento) {
         nextId = parseInt(lastId, 10) + 1;
       }
 
-      const agendamentosAtualizados = carregarAgendamentosParaVerificacao(null, datasVerificacao);
+      const agendamentosAtualizados = carregarAgendamentosParaVerificacao(null, datasVerificacao, { ignorarCache: true });
       const tzPadrao = obterTimeZonePadrao();
 
       const registrarAgendamentoEmMemoria = (dataIso, entradaDados, idGerado) => {
@@ -2590,10 +2593,14 @@ function atualizarStatusMultiplasSalas(salas, status, motivo) {
 /**
  * Pré-carrega agendamentos por dia para acelerar a verificação de conflitos
  */
-function carregarAgendamentosParaVerificacao(sala, datas) {
+function carregarAgendamentosParaVerificacao(sala, datas, opcoes) {
   if (!Array.isArray(datas) || !datas.length) {
     return {};
   }
+
+  const ignorarCache = typeof opcoes === 'object'
+    ? !!opcoes.ignorarCache
+    : Boolean(opcoes);
 
   const tz = obterTimeZonePadrao();
   const datasProcessadas = datas.reduce((lista, dataStr) => {
@@ -2617,7 +2624,7 @@ function carregarAgendamentosParaVerificacao(sala, datas) {
 
   const inicio = datasProcessadas[0].dataObj;
   const fim = datasProcessadas[datasProcessadas.length - 1].dataObj;
-  const periodo = obterAgendamentosPeriodoAgrupado(inicio, fim);
+  const periodo = obterAgendamentosPeriodoAgrupado(inicio, fim, { ignorarCache });
   const resultado = {};
 
   datasProcessadas.forEach(({ iso }) => {
